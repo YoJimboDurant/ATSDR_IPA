@@ -1,0 +1,2427 @@
+---
+title: "Exposure Parameters and PRA"
+author: "Ann Roseberry Lincoln"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+  toc: yes
+  toc_depth: 3
+  toc_float: yes
+  number_sections: TRUE
+ word_document:
+  toc: yes
+  df_print: paged
+ pdf_document:
+  toc: true
+always_allow_html: yes
+R version: "R version: `r getRversion()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(results='asis', echo=TRUE, warning=FALSE)
+# Debugging
+boo.DEBUG <- TRUE
+
+if (boo.DEBUG==TRUE) {
+  report_format="html"
+}
+#
+# Define pipe
+`%>%` <- dplyr::`%>%`
+#
+nsamps <- 10000
+
+```
+
+
+# Exposure Information for IPRA
+
+Typically, quantifying exposure is conducted using a deterministic (point estimate) approach where each parameter defined in the above equations has its own value. Consequently, the output of the risk equation is a point estimate of risk. A probabilistic risk assessment (PRA) uses probability distributions for one or more variables in the intake and risk equations to quantitative characterize variability and/or uncertainty. The output of the PRA is a distribution of risks that reflects the combination of the input probability distributions.
+
+When estimating risk by inhalation, risk assessors use the exposure concentration (EC) of the chemical in air (mg/m3) as the exposure metric, rather than the inhalation intake (or dose) based on inhalation rate and body weight (mg/kg-day) (USEPA, 2009).
+
+ECs for chronic exposure scenarios are time-weighted average concentrations derived from measured or modeled contaminant concentrations in air at a site, adjusted based on the characteristics of the exposure scenario being evaluated (USEPA, 2009). The equation for estimating an EC for a carcinogen, like ethylene oxide, is defined as:
+
+$EC_{c} = \frac{\left(CA\left( \frac{ \mu g}{m^3} \right) \times ET \left( \frac {h}{d} \right) \times EF \left( \frac {d}{y} \right) \times ED \left( y \right) \right)}{AT_{c} \left( y \right) \times \left( \frac {365 d}{y} \right) \times \left( \frac {24 h}{d} \right)}$
+
+where:
+
+* EC = Exposure concentration as a time-weighted average ($\mu$g/m^3^) 
+* CA = Contaminant concentration in air ($\mu$g/m^3^) 
+* ET = Exposure time (h/d) 
+* EF = Exposure frequency (d/y) 
+* ED = Exposure duration (y) 
+* AT = Averaging time (lifetime in years x 365 d/y x 24 h/d)
+
+The excess cancer risk for a receptor exposed via the inhalation pathway can be estimated with the following equation:
+
+$Risk = EC\left( \frac{ \mu g}{m^3} \right)\times IUR\left( \frac{ m^3}{\mu g} \right)$
+
+where:
+
+* EC = Exposure concentration as a time-weighted average ($\mu$g/m^3^) 
+* IUR = Inhalation unit risk ($\mu$g/m^3^)^-1^
+
+## Tier 1 Sensitivity Analysis
+
+Prior to investing significant effort in developing appropriate distributions for use in a probabilistic risk assessment, it is useful to perform a screening (Tier 1) sensitivity analysis. Typically, the analysis would evaluate the separate pathways and hypothetical receptors to determine which, if any, result in such low risk that they can be eliminated from further evaluation. In this case study, only one pathway (inhalation) and receptor (adult resident) is considered and will be carried forward into the PRA.
+
+Varying each exposure factor's point estimate allows the analyst to determine which factor most influences the final exposure concentration and therefore, risk. A exposure concentration estimate with all factors equal to their central tendency determines the baseline from which changes relating to each factor's influence is evaluated. Each factor in turn is raised to the reasonable maximum and the change in the exposure concentration estimate noted. Factors are ranked based on the amount of change observed. For inhalation risk of cancer from ethylene oxide, the most influential exposure factors are (in decreasing order): exposure duration, exposure frequency, exposure time, and averaging time. Each of these factors will be explored in more depth below.
+
+## Characterizing Variability in Exposure Factors
+
+### Ethylene Oxide Concentration in Air
+
+Ethylene oxide is colorless, flammable gas that is heavier than air, easily dissolved in water, alcohol, and most organic solvents, and degrades in both air and water with a half-life ranging from hours to 2-3 weeks, depending on specific conditions. For purposes of illustration of PRA, a hypothetical ethylene oxide data set was derived from nitrogen oxide concentrations in the Los Angeles basin provided by the California Air Resources Board as described in Section X.X. The data are included in Attachment A. The data were collected over the period of one year, from multiple locations in the basin, thus presenting sufficient information to represent both the spatial and temporal variability in the data and to determine an annual average concentration.
+
+In point estimate risk assessments, the exposure point concentration term is usually calculated as the 95 percent upper confidence limit of the arithmetic mean (95% UCL) because of the uncertainty associated with estimating the population mean concentration at a site (USEPA, 1989). Smaller sample sizes typically result in greater uncertainty. Therefore, use of the 95% UCL to define the concentration term is more conservative toward public health by reducing the likelihood of underestimating the mean. Typically, USEPA’s ProUCL software has been used to determine the 95% UCL (USEPA, 2015). ProUCL computes statistics using parametric and nonparametric methods by considering a data set’s distribution, skewness, and sample size, and recommends a distribution type, its parameters, and the 95% UCL of the arithmetic mean for use in point estimate risk assessments.
+
+The air data (Attachment A) were incorporated into ProUCL 5.1.002. The ProUCL output (Attachment B) shows that the variability demonstrated by the air concentration data set is lognormally distributed. The 95% UCL of 0.641 $\mu$g/m^3^ recommended for point assessments is based on the Land H-statistic method. The mean of the logged data is -1.716; therefore, the median^a^ is 0.18 µg/m3 and the geometric mean^b^ is 0.52. The standard deviation of the logged data is 1.457; therefore, the geometric standard deviation^c^ is 2.0 µg/m3.
+
+Goodness of fit testing using R package "fitdistrplus" (Delignette-Muller and Dutang 2015) confirms lognormal as the best fit parametric distribution describing variability. The standard deviation of the logged data differs from the ProUCL determination by 0.002. 
+
+__INSERT RON'S FOOTNOTES AND TABLE HERE__
+
+```{r raw_air, echo=FALSE}
+
+wd <- file.path(getwd(),"Data")
+CA <- "ContaminantConcentration_ug_m3"
+fnair <- file.path(wd, CA
+  , "NOX_HVAL_2019-12-31 hourly data in basin_converted to ug per m3.xls")
+
+df_CA <- readxl::read_excel(fnair, sheet="ForR", skip = 0, trim_ws = TRUE
+              , na = c("", "NA"))
+
+descAir <- fitdistrplus::descdist(df_CA$Adj_EtO, boot = 10000)
+
+# Use pkg fitdistrplus to fit lognormal distribution
+fit_CAlnorm <- fitdistrplus::fitdist(df_CA$Adj_EtO, "lnorm"
+                    , method = "mle")
+
+# Goodness of fit results
+gof_air_lnorm <- fitdistrplus::gofstat(fit_CAlnorm)
+df_gof_CA <- data.frame(Distribution = "Lognormal"
+           , AD_statistic = round(gof_air_lnorm$ad,3)
+           , AD_result = gof_air_lnorm$adtest
+           , KS_statistic = round(gof_air_lnorm$ks,3)
+           , KS_result = gof_air_lnorm$kstest
+           , AIC = round(gof_air_lnorm$aic,1)
+           , BIC = round(gof_air_lnorm$bic,1))
+rownames(df_gof_CA) <- NULL
+
+gof_caption <- "Goodness of fit results for EtO air data"
+knitr::kable(df_gof_CA, escape=FALSE, format=report_format
+       , col.names=colnames(df_gof_CA), caption = gof_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+distAir <- data.frame(Parameter = "meanlog"
+           , Estimate =round(fit_CAlnorm$estimate[1],3)
+           , Std.Err = round(fit_CAlnorm$sd[1],3))
+distAir <- rbind(distAir, data.frame(Parameter = "sdlog"
+           , Estimate =round(fit_CAlnorm$estimate[2],3)
+           , Std.Err = round(fit_CAlnorm$sd[2],3)))
+rownames(distAir) <- NULL
+
+lnAir_caption <- "Parameters for EtO"
+knitr::kable(distAir, escape=FALSE, format=report_format
+       , col.names=colnames(distAir), caption = lnAir_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE) %>%
+  kableExtra::footnote(general = "Best fit lognormal distribution")
+
+rm(descAir, df_gof_CA, distAir, gof_air_lnorm, gof_caption, lnAir_caption
+   , p_Air, plot.legend)
+
+# Graph histogram of data, with weibull and log functions overlaid
+df_lnorm <- as.data.frame(rlnorm(nrow(df_CA), meanlog=-1.716, sdlog=1.455))
+colnames(df_lnorm)[1] <- "Est_Lognormal"
+df_lnorm2 <- as.data.frame(rlnorm(nrow(df_CA), meanlog=-1.716, sdlog=1.457))
+colnames(df_lnorm2)[1] <- "Est_Lnorm_2"
+
+df_CA <- cbind(df_CA, df_lnorm, df_lnorm2)
+
+hist_caption <- paste(paste0("Yellow curve is empirical density;")
+           , paste0("green curve is lognormal (-1.716, 1.455); "
+                , "violet curve is lognormal (-1.716, 1.457).")
+           , sep="\n")
+xlabelCA <- expression(paste("Ethylene oxide (", mu,"g/",m^3,")"))
+hist_color <- c("dark grey", "yellow", "red", "green","violet")
+p_hist_Air <- ggplot2::ggplot(df_CA, ggplot2::aes(Adj_EtO)
+               , color=hist_color[1]) +
+  ggplot2::geom_histogram(binwidth=0.01) + 
+  ggplot2::geom_density(color=hist_color[2]) +
+  ggplot2::geom_density(ggplot2::aes(Est_Lognormal), color=hist_color[4]) +
+  ggplot2::geom_density(ggplot2::aes(Est_Lnorm_2), color=hist_color[5]) +
+  ggplot2::xlim(0,3.5) +
+  ggplot2::ylim(0,20) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Histogram of ethylene oxide in air"
+         , subtitle="with theoretical density curves"
+         , caption = hist_caption
+         , x = xlabelCA, y = "Count") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 6))
+
+p_hist_Air01 <- ggplot2::ggplot(df_CA, ggplot2::aes(Adj_EtO)
+                 , color=hist_color[1]) +
+  ggplot2::geom_histogram(binwidth=0.01) + 
+  ggplot2::geom_density(color=hist_color[2]) +
+  ggplot2::geom_density(ggplot2::aes(Est_Lognormal), color=hist_color[4]) +
+  ggplot2::geom_density(ggplot2::aes(Est_Lnorm_2), color=hist_color[5]) +
+  ggplot2::xlim(0,1) +
+  ggplot2::ylim(0,20) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Histogram of ethylene oxide in air (excluding tail)"
+         , subtitle="with theoretical density curves"
+         , caption = hist_caption
+         , x = xlabelCA, y = "Count") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 6))
+
+gridExtra::grid.arrange(p_hist_Air, p_hist_Air01, nrow=1, ncol=2)
+
+rm(df_lnorm, df_lnorm2, p_hist_Air01, p_hist_Air, fnair, hist_caption
+  , hist_color, hist_labs, xlabel, CA)
+
+```
+
+### Exposure Duration
+
+In point estimate risk estimates, the Exposure Duration (ED) for a resident is typically defined as 26 years. This is the value currently used for developing residential regional screening levels (RSL) by EPA for soil, air, and tap water (USEPA, 2020). The exposure duration of 26 years is the 90th percentile for residential occupancy (Johnson and Capel, 1992).
+
+The U.S. Exposure Factors Handbook (USEPA, 2011) cites a U.S. Census Bureau (U.S. Census Bureau 2008) survey that reflect the number of years a unit has been occupied based on a sample size of over 110,000 households. The U.S. Exposure Factors Handbook provides a range of years of residence corresponding to the percent of total households where residents remained in that household.
+
+The number of years a resident remains in the same residence is used to estimate Exposure Duration (ED, years). In point estimate risk estimates, the Exposure Duration (ED) for a resident is typically defined as 26 years. This is the value currently used for developing residential regional screening levels (RSL) by EPA for soil, air, and tap water (USEPA, 2020). The exposure duration of 26 years is the 90th percentile for residential occupancy (Johnson and Capel, 1992).
+
+The U.S. Exposure Factors Handbook (USEPA, 2011) cites a U.S. Census Bureau (U.S. Census Bureau, 2008) survey that reflect the number of years a unit has been occupied based on a sample size of over 110,000 households. The U.S. Exposure Factors Handbook provides a range of years of residence corresponding to the percent of total households where residents remained in that household. 
+
+    mean = 13 years
+    50th percentile = 8 years
+    90th percentile = 32 years
+    95th percentile = 46 years
+    99th percentile = 62 years
+  
+Since these data derive from the American Housing Survey of 2007, more recent data were also reviewed. Summarized 2017 and 2015 data were retrieved using the AHS Table Creator (US Census Bureau, 2020). Year moved in data for all residents was summarized as number of years occupancy (maximum of bin) and cumulative fraction of residents. 
+  
+```{r ED_EFH, include=FALSE}
+
+ED <- "ExposureDuration_yr"
+fnED <- file.path(wd, ED, "ExpDuration_2017_2015_2008_summary.xlsx")
+
+df_ExpDur <- readxl::read_excel(fnED, sheet = "Sheet1", trim_ws = TRUE)
+df_ExpDur <- df_ExpDur %>%
+  dplyr::mutate(CumFraction_2017_summary=round(CumFraction_2017_summary,3)
+         ,CumFraction_2015_summary=round(CumFraction_2015_summary,3)
+         ,CumFraction_2007_summary=round(CumFraction_2007_summary,3))
+
+ED_EFH_caption <- "Exposure Duration Data (US EPA, 2011, EFH)"
+knitr::kable(df_ExpDur, escape=FALSE, format=report_format, colnames=colnames(df_ExpDur), caption = ED_EFH_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped","condensed")
+               , font_size = 12, full_width = FALSE
+               , position = "left")
+
+rm(fnED, ED_EFH_caption)
+
+```
+
+#### Alternate Data
+
+New data have been published since the publication of the 2011 EFH, and these data are used here to estimate a reasonable distribution for Exposure Duration. It is important to note that Exposure Duration must in all cases be no greater than Averaging Time, where averaging time is equal to the hypothetically exposed individual's lifetime. 
+
+Survey data representing the year a resident moved into a unit was obtained from the US Census Bureau American Housing Survey website. Data from the 2007, 2015, and 2017 surveys were compared, both in raw (public) and summary (modified) form.
+
+We adjusted the raw unweighted data by removing flagged data (JHHMOVE equals 1 or 2) and filtering the data to include only the number of adults age 18 and older. By counting the number of adults, we made an implicit assumption that the adults moved into the unit at the same time. Disaggregating the respondant from other adults to determine separate move-in dates would require significant effort beyond the scope of this case study. Summarized data are estimated data published by AHS in their Table creator (US Census Bureau, 2020) and include all residents.
+
+Raw data used for exposure duration distributions will not exactly match summarized data published by the Census Bureau for several reasons (US Census Bureau, 2019):
+
+1. Raw data were filtered to include only adults aged 18 and over; summarized data include all ages. Including younger residents will shift the upper percentiles to lower years of occupancy, potentially underestimating risk.
+
+1. Raw data include all durations of occupancy; summarized data are truncated beyond a specified maximum number of years (in 2017, this was >=37 years). A more complete data set will provide a more reasonable estimate of risk variability.
+
+1. Raw data were obtained from public use file data; summarized data apply disclosure avoidance adjustments to the public use data. Although the Census Bureau declares the availability of SAS code and table-specific information (AHS summary table specifications) for public users to generate replicate the published summary tables, neither product was readily identied on the Census Bureau website. Consequently the effect on the final distribution is unknown.
+
+Differences in the three datasets available from the 2007, 2015, and 2017 AHS public data are slight. Although the raw data are not weighted, the curve generated using them approximates the curve generated by the weighted, summarized data for each year of data. The raw data were filtered to exclude children under age 18, which are presumably included in the summarized, weighted data. For this reason, the raw data are preferred. Since children under the age of 18 are likely to live with their parents, similarity in raw and summary curves for number of years occupancy less than 18 years may be expected to match. In contrast, greater numbers of years occupancy may diverge as a consequence of children leaving home. The expectation would be that summary data (including children) would compress the upper tail to fewer years of occupancy. 
+
+```{r ED_AHS2017, include=FALSE}
+
+wd2017 <- file.path(wd, ED,"AHS 2017 National PUF v3.0 SAS")
+fnED2017 <- file.path(wd2017,"household.sas7bdat")
+
+df_ED2017 <- haven::read_sas(fnED2017)
+df_ED2017_2 <- df_ED2017[, c("JHHMOVE", "HHMOVE", "NUMPEOPLE", "NUMADULTS"
+               , "WEIGHT")]
+
+# NOTE: JHHMOVE value of 1 means respondent's reported value was edited; 
+# JHHMOVE value of 2 means the respondent's value was imputed.
+# WEIGHT is final weight
+# NUMPEOPLE is number of persons living in unit
+# NUADULTS is number of persons age 18 and older living in unit
+
+df_ED2017_complete <- df_ED2017_2[complete.cases(df_ED2017_2),] 
+
+df_ED2017_summary <- df_ED2017_complete %>%
+  dplyr::select(JHHMOVE, HHMOVE, NUMADULTS) %>%
+  dplyr::filter(JHHMOVE == "0") %>%
+  dplyr::group_by(HHMOVE) %>%
+  dplyr::summarize(totPeople_2017 = sum(NUMADULTS))
+
+grandTotalPeople <- as.numeric(colSums(df_ED2017_summary[,"totPeople_2017"]))
+
+df_ED2017_summary <- df_ED2017_summary %>%
+  dplyr::arrange(desc(HHMOVE)) %>%
+  dplyr::mutate(NumYears_2017 = 2017 - HHMOVE
+         , Fraction_2017 = round(totPeople_2017/grandTotalPeople,3)
+         , CumFract_2017 = round(cumsum(Fraction_2017),3))
+
+# ED2017_caption <- "AHS raw data for year moved into residency unit (2017)"
+# 
+# knitr::kable(df_ED2017_summary, escape=FALSE, format=report_format
+#       , colnames=colnames(df_ED2017_summary)
+#       , caption = ED2017_caption) %>%
+#   kableExtra::kable_styling(bootstrap_options = c("striped","condensed")
+#                , font_size = 12, full_width = FALSE
+#                , position = "left")
+
+p_histED2017_raw <- ggplot2::ggplot(df_ED2017_summary
+                  , ggplot2::aes(x=NumYears_2017
+                          , y=totPeople_2017)) +
+  ggplot2::geom_col(color="black", fill="light gray") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Bar Plot of Exposure Duration"
+         , subtitle="Years residing in one house"
+         , caption = ""
+         , x = "Years", y = "Number of People") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+          , legend.position = "none")
+
+# Not yet adjusted
+p_cdfED2017_raw <- ggplot2::ggplot(df_ED2017_summary
+                  , ggplot2::aes(x=NumYears_2017
+                         , y=CumFract_2017)) +
+  ggplot2::geom_point(color = "blue") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="CDF of number of years in residence"
+         , subtitle="Adults age 18 and older"
+         , caption = "AHS 2017"
+         , x = "Years", y = "Cumulative Fraction") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(p_histED2017_raw, p_cdfED2017_raw, nrow=1, ncol=2)
+
+rm(fnED2017, grandTotalPeople, wd2017)
+
+```
+
+```{r ED_AHS2015, include=FALSE}
+
+wd2015 <- file.path(wd, ED,"AHS 2015 National PUF v3.0 SAS")
+fnED2015 <- file.path(wd2015,"household.sas7bdat")
+
+df_ED2015 <- haven::read_sas(fnED2015)
+df_ED2015_2 <- df_ED2015[, c("JHHMOVE", "HHMOVE", "NUMPEOPLE", "NUMADULTS"
+               , "WEIGHT")]
+
+# NOTE: JHHMOVE value of 1 means respondent's reported value was edited; 
+# JHHMOVE value of 2 means the respondent's value was imputed.
+# WEIGHT is final weight
+# NUMPEOPLE is number of persons living in unit
+# NUADULTS is number of persons age 18 and older living in unit
+
+df_ED2015_complete <- df_ED2015_2[complete.cases(df_ED2015_2),] 
+
+df_ED2015_summary <- df_ED2015_complete %>%
+  dplyr::select(JHHMOVE, HHMOVE, NUMADULTS) %>%
+  dplyr::filter(JHHMOVE == "0") %>%
+  dplyr::group_by(HHMOVE) %>%
+  dplyr::summarize(totPeople_2015 = sum(NUMADULTS))
+
+grandTotalPeople <- as.numeric(colSums(df_ED2015_summary[,"totPeople_2015"]))
+
+df_ED2015_summary <- df_ED2015_summary %>%
+  dplyr::arrange(desc(HHMOVE)) %>%
+  dplyr::mutate(NumYears_2015 = 2015 - HHMOVE
+         , Fraction_2015 = round(totPeople_2015/grandTotalPeople,3)
+         , CumFract_2015 = round(cumsum(Fraction_2015),3))
+
+# ED2015_caption <- "AHS raw data for year moved into residency unit (2015)"
+#
+# knitr::kable(df_ED2015_summary, escape=FALSE, format=report_format
+#       , colnames=colnames(df_ED2015_summary)
+#       , caption = ED2015_caption) %>%
+#   kableExtra::kable_styling(bootstrap_options = c("striped","condensed")
+#                , font_size = 12, full_width = FALSE
+#                , position = "left")
+
+p_histED2015_raw <- ggplot2::ggplot(df_ED2015_summary
+                  , ggplot2::aes(x=NumYears_2015
+                          , y=totPeople_2015)) +
+  ggplot2::geom_col(color="black", fill="light gray") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Bar Plot of Exposure Duration"
+         , subtitle="Years residing in one house"
+         , caption= "AHS 2015"
+         , x = "Years", y = "Number of People") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=8)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+          , legend.position = "none")
+
+# Not yet adjusted
+p_cdfED2015_raw <- ggplot2::ggplot(df_ED2015_summary
+                  , ggplot2::aes(x=NumYears_2015
+                         , y=CumFract_2015)) +
+  ggplot2::geom_point(color = "blue") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Number of years in residence"
+         , subtitle="Adults age 18 and older"
+         , caption = "AHS 2015"
+         , x = "Number of Years", y = "Cumulative Fraction") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(p_histED2015_raw, p_cdfED2015_raw, nrow=1, ncol=2)
+
+rm(fnED2015, wd2015,grandTotalPeople)
+
+```
+
+```{r ED_AHS2007, include=FALSE}
+
+wd2007 <- file.path(wd, ED,"AHS 2007 National PUF v1.1 SAS")
+fnED2007 <- file.path(wd2007,"newhouse.sas7bdat")
+
+df_ED2007 <- haven::read_sas(fnED2007)
+df_ED2007_2 <- df_ED2007[, c("jhhmove", "hhmove", "per", "zadult"
+               , "weight")]
+
+# NOTE: JHHMOVE value of 1 means respondent's reported value was edited; 
+# JHHMOVE value of 2 means the respondent's value was imputed.
+# WEIGHT is final weight
+# NUMPEOPLE is number of persons living in unit
+# NUADULTS is number of persons age 18 and older living in unit
+
+df_ED2007_complete <- df_ED2007_2[complete.cases(df_ED2007_2),] 
+
+df_ED2007_summary <- df_ED2007_complete %>%
+  dplyr::select(jhhmove, hhmove, zadult) %>%
+  dplyr::filter(jhhmove == "") %>%
+  dplyr::group_by(hhmove) %>%
+  dplyr::summarize(totPeople_2007 = sum(zadult))
+
+grandTotalPeople <- as.numeric(colSums(df_ED2007_summary[,"totPeople_2007"]))
+
+df_ED2007_summary <- df_ED2007_summary %>%
+  dplyr::arrange(desc(hhmove)) %>%
+  dplyr::mutate(NumYears_2007 = 2007 - hhmove
+         , Fraction_2007 = round(totPeople_2007/grandTotalPeople,3)
+         , CumFract_2007 = round(cumsum(Fraction_2007),3))
+
+# ED2007_caption <- "AHS raw data for year moved into residency unit (2007)"
+# 
+# knitr::kable(df_ED2007_summary, escape=FALSE, format=report_format
+#       , colnames=colnames(df_ED2007_summary)
+#       , caption = ED2007_caption) %>%
+#   kableExtra::kable_styling(bootstrap_options = c("striped","condensed")
+#                , font_size = 12, full_width = FALSE
+#                , position = "left")
+
+p_histED2007_raw <- ggplot2::ggplot(df_ED2007_summary
+                  , ggplot2::aes(x=NumYears_2007
+                          , y=totPeople_2007)) +
+  ggplot2::geom_col(color="black", fill="light gray") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Bar Plot of Exposure Duration"
+         , subtitle="Years residing in one house"
+         , caption= "AHS 2007"
+         , x = "Years", y = "Number of People") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=8)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+          , legend.position = "none")
+
+# Not yet adjusted
+p_cdfED2007_raw <- ggplot2::ggplot(df_ED2007_summary
+                  , ggplot2::aes(x=NumYears_2007
+                         , y=CumFract_2007)) +
+  ggplot2::geom_point(color = "blue") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Number of years in residence"
+         , subtitle="Adults age 18 and older"
+         , caption = "AHS 2007"
+         , x = "Number of Years", y = "Cumulative Fraction") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(p_histED2007_raw, p_cdfED2007_raw, nrow=1, ncol=2)
+
+rm(fnED2007,wd2007,grandTotalPeople)
+
+```
+
+```{r ED_all, fig.width=7, fig.height=7, echo=FALSE}
+
+df_ED_raw <- merge(df_ED2017_summary[,c("NumYears_2017", "CumFract_2017")]
+             , df_ED2015_summary[,c("NumYears_2015", "CumFract_2015")]
+             , by.x = "NumYears_2017", by.y = "NumYears_2015"
+             , all = TRUE)
+
+df_ED_raw <- merge(df_ED_raw, df_ED2007_summary[,c("NumYears_2007", "CumFract_2007")]
+            , by.x = "NumYears_2017", by.y = "NumYears_2007"
+            , all = TRUE)
+
+df_ED_all <- merge(df_ED_raw, df_ExpDur[,c("NumYears_SummaryData"
+                      , "CumFraction_2017_summary"
+                      , "CumFraction_2015_summary"
+                      , "CumFraction_2007_summary")]
+          , by.x = "NumYears_2017", by.y = "NumYears_SummaryData"
+          , all = TRUE)
+df_ED_all <- df_ED_all[,c("NumYears_2017", "CumFract_2017"
+              , "CumFraction_2017_summary", "CumFract_2015"
+              , "CumFraction_2015_summary", "CumFract_2007"
+              , "CumFraction_2007_summary")]
+df_ED_all_formal <- df_ED_all %>%
+  dplyr::rename("Number of Years" = NumYears_2017
+         , "2017 Raw, adults" = CumFract_2017
+         , "2017 Summary, all persons" = CumFraction_2017_summary
+         , "2015 Raw, adults" = CumFract_2015
+         , "2015 Summary, all persons" = CumFraction_2015_summary
+         , "2007 Raw, adults" = CumFract_2007
+         , "2007 Summary, all persons" = CumFraction_2007_summary)
+
+EDall_caption <- "Comparison of AHS Survey Data (number of years since moved in)"
+
+knitr::kable(df_ED_all_formal, escape=FALSE, format=report_format
+       , col.names=colnames(df_ED_all_formal), caption = EDall_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped","condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE) %>%
+  kableExtra::column_spec(1, bold=TRUE) %>%
+  kableExtra::add_header_above(c(" ", "2017 Percentile"=2, "2015 Percentile"=2
+                  ,"2007 Percentile"=2))
+  # kableExtra::footnote(general = "Raw data are not weighted; summary data are weighted.")
+
+df_ED_2017trim <- df_ED_all %>%
+  dplyr::select(NumYears_2017, CumFract_2017, CumFraction_2017_summary) %>%
+  dplyr::mutate(SurveyYear = 2017) %>%
+  dplyr::rename(NumYears = NumYears_2017, CumFract_raw = CumFract_2017
+         , CumFract_summary = CumFraction_2017_summary)
+df_ED_2015trim <- df_ED_all %>%
+  dplyr::select(NumYears_2017, CumFract_2015, CumFraction_2015_summary) %>%
+  dplyr::mutate(SurveyYear = 2015) %>%
+  dplyr::rename(NumYears = NumYears_2017, CumFract_raw = CumFract_2015
+         , CumFract_summary = CumFraction_2015_summary)
+df_ED_2007trim <- df_ED_all %>%
+  dplyr::select(NumYears_2017, CumFract_2007, CumFraction_2007_summary) %>%
+  dplyr::mutate(SurveyYear = 2007) %>%
+  dplyr::rename(NumYears = NumYears_2017, CumFract_raw = CumFract_2007
+         , CumFract_summary = CumFraction_2007_summary)
+
+df_ED_all_long <- rbind(df_ED_2017trim, df_ED_2015trim, df_ED_2007trim)
+df_ED_all_long <- df_ED_all_long[!is.na(df_ED_all_long$CumFract_raw),]
+df_ED_all_long$SurveyYear <- as.factor(df_ED_all_long$SurveyYear)
+
+# Plot raw CDF data, overlay summary points
+pal_dot <- viridis::viridis(4)
+p_cdfED_all <- ggplot2::ggplot(df_ED_all_long) +
+  ggplot2::geom_point(ggplot2::aes(x=NumYears, y=CumFract_raw
+                   , color = SurveyYear, shape = SurveyYear)) +
+  ggplot2::geom_smooth(ggplot2::aes(x=NumYears, y=CumFract_summary)
+             , method = "loess", color = "black", se=FALSE
+             , na.rm = TRUE) +
+  ggplot2::scale_color_manual(values = pal_dot) +
+  ggplot2::geom_vline(xintercept = 18, color="red") +
+  ggplot2::geom_vline(xintercept = 85, color="red") +
+  ggplot2::facet_grid(SurveyYear ~ .) +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Number of years in residence"
+         , subtitle="Adults age 18 and older"
+         , caption = "AHS Survey Data (2007, 2015, and 2017)"
+         , x = "Number of Years", y = "Cumulative Fraction") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(size=8)
+          , legend.position = "none")
+p_cdfED_all
+
+rm(p_cdfED2007_raw, p_cdfED2015_raw, p_cdfED2017_raw, p_histED2007_raw
+  , p_histED2015_raw, p_histED2017_raw, df_ED2007, df_ED2007_2
+  , df_ED2007_complete, df_ED2007_summary, df_ED2015, df_ED2015_2
+  , df_ED2015_complete, df_ED2015_summary, df_ED2017, df_ED2017_2
+  , df_ED_2007trim, df_ED_2015trim, df_ED_2017trim, df_ED_all
+  , df_ED_all_formal, df_ED_all_long, df_ED_raw, df_ExpDur, p_cdfED_all)
+
+```
+
+```{r ED_select, out.width="80%", fig.cap="2017 AHS occupancy data", echo=FALSE}
+
+fnStats <- file.path(wd,ED,"SpecificStatsFromAHSDataMultipleYears.xlsx")
+
+dfStats <- readxl::read_excel(fnStats, sheet = "SelectedParameters"
+               , range = "A2:E10"
+               , col_names = c("AHSYear", "Percentile"
+                       , "Summary"
+                       , "Raw", "Diff")
+               , col_types = c("numeric", "numeric", "numeric"
+                       , "numeric", "numeric")
+               , trim_ws = TRUE, na = "NA")
+dfStats2 <- dfStats %>%
+  tidyr::pivot_wider(id_cols = AHSYear, names_from = Percentile
+            , values_from = c("Summary", "Raw", "Diff"))
+
+Stats_caption <- "Selected percentiles for comparison of raw and summarized AHS data"
+
+stats_colnames <- c("AHS Survey Year", "Median (summary)"
+          , "90th %-ile (summary)"
+          , "95th %-ile (summary)", "Median (raw)"
+          , "90th %-ile (raw)"
+          , "95th %-ile (raw)", "Difference (Median)"
+          , "Difference (90th)", "Difference (95th)")
+
+knitr::kable(dfStats2, escape=FALSE, format=report_format
+       , col.names=stats_colnames, caption = Stats_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = TRUE
+               , position = "left", fixed_thead = TRUE) %>%
+  kableExtra::column_spec(1, bold=TRUE) %>%
+  kableExtra::collapse_rows(1, valign = "top")
+
+# knitr::include_graphics(file.path(wd,ED,"2017AHSOccupancyDataByAgeGroup.png"))
+
+rm(dfStats, dfStats2, Stats_caption, stats_colnames)
+
+```
+
+#### Identify Theoretical Distributions
+
+A Tier 1 sensitivity analysis (USEPA 2001) using varied point estimate for each exposure factor in the exposure concentration equation indicated that exposure duration is the most influential. For this reason, it is desirable to obtain the best estimate of the probability distribution function for inclusion in the PRA. As described above, the 2017 AHS Occupancy data for adults aged 18 and older is the most suitable data set for this purpose. Specifically, there are sufficient data to fit to a theoretical probability distribution or to use in an empirical distribution function for the PRA. The data are representative of the target population, as well (adults, age 18 and over).
+
+```{r 2017ED_sample, fig.width=7, fig.height=10, include=FALSE, echo=FALSE}
+
+# Revise ED2017 data (eliminate rounding)
+df_ED2017_sumB <- df_ED2017_complete %>%
+  dplyr::select(JHHMOVE, HHMOVE, NUMADULTS) %>%
+  dplyr::filter(JHHMOVE == "0") %>%
+  dplyr::group_by(HHMOVE) %>%
+  dplyr::summarize(totPeople_2017 = sum(NUMADULTS))
+
+grandTotalPeople <- as.numeric(colSums(df_ED2017_sumB[,"totPeople_2017"]))
+
+df_ED2017_sumB <- df_ED2017_sumB %>%
+  dplyr::arrange(desc(HHMOVE)) %>%
+  dplyr::mutate(NumYears_2017 = 2017 - HHMOVE
+         , Fraction_2017 = totPeople_2017/grandTotalPeople
+         , CumFract_2017 = cumsum(Fraction_2017))
+
+# Replicated actual data where Num Year is replicated totPeople times
+AHSsample <- rep(as.integer(df_ED2017_summary$NumYears_2017)
+           , as.integer(df_ED2017_summary$totPeople_2017))
+
+df_EDsample <- as.data.frame(AHSsample)
+colnames(df_EDsample)[1] <- "NumYears"
+df_EDsampHist <- df_EDsample
+df_EDsampleCDF <- df_EDsample %>%
+  dplyr::mutate(Count = 1) %>%
+  dplyr::group_by(NumYears) %>%
+  dplyr::summarise(Fraction = sum(Count)/length(AHSsample)) %>%
+  dplyr::mutate(CumFract = cumsum(Fraction))
+
+ahs_caption <- "AHS 2017; green line = actual data, smoothed (loess)"
+
+p_cdfED2017_comp <- ggplot2::ggplot(df_ED2017_sumB
+                  , ggplot2::aes(x=NumYears_2017
+                         , y=CumFract_2017)) +
+  ggplot2::geom_smooth(data=df_EDsampleCDF
+             , ggplot2::aes(x=NumYears, y=CumFract)
+             , method = "loess", se=FALSE, color=pal_dot[3]
+             , size = 1) +
+  ggplot2::geom_point(color = pal_dot[1], shape=20) +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="CDF of number of years in residence"
+         , subtitle="Adults age 18 and older"
+         , caption = ahs_caption
+         , x = "Years", y = "Cumulative Fraction") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(size=8))
+
+p_histED2017_resamp <- ggplot2::ggplot(as.data.frame(df_EDsampHist)
+                    , ggplot2::aes(x=NumYears)) +
+  ggplot2::geom_histogram(binwidth = 1, color="black", fill="light gray") +
+  ggplot2::xlim(0,100) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="Histogram of Exposure Duration: Actual Data"
+         , subtitle="Years residing in one house"
+         , caption = ""
+         , x = "Years", y = "Number of People") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+          , legend.position = "none")
+
+gridExtra::grid.arrange(p_histED2017_resamp, p_cdfED2017_comp, nrow=2, ncol=1)
+
+# Data to use for ECDF: df_ED2017_sumB
+# Data to use for GoF tests: df_EDsampHist
+
+rm(df_EDsample, df_EDsampleCDF, df_ED2017_complete, df_ED2017_summary
+  , p_cdfED2017_comp, p_histED2017_resamp, ahs_caption, AHSsample
+  , EDall_caption, grandTotalPeople, Stats_caption, stats_colnames
+  , fnStats, df_ED2017_sumB, ED)
+
+```
+
+#### Goodness of Fit Testing
+
+Although the exposure duration is expected to be continuously distributed variable, only discrete values are available from the data set. Therefore, the fitted distribution should represent discrete events. Mechanistically, the Poisson distribution would best describe the data, but the Poisson approximates a binomial when the sample size is large and the probability of each event is small. A related case is the negative binomial distribution, which represents the number of failures until a successful event (e.g., moving) occurs. A value equal to one year was added to each value in the sample to eliminate zeroes. In other words, at least one year of occupancy was assumed during the year when the occupant moved into the residence. This is particularly important since discrete distributions require integer values, and zero is unrealistic: a resident cannot have lived in the residence for zero years.
+
+The package "fitdistrplus" (Delignette-Muller and Dutang, 2015) provides a variety of functions well-suited to fitting empirical data to a variety of theoretical distributions, including the two distributions suggested mechanistically. Although both goodness of fit tests reject the theoretical distributions, large sample sizes may increase the likelihood of rejection  (Delignette-Muller and Dutang, 2020), so graphical representations of fit are also provided. The Poisson distribution does not fit the observed data at all (results not shown). Moreover, although the negative binomial distribution graphically appears to fit the empirical data moderately well, a review of the observed counts for each year show significant differences in many years (Table 1). Consequently, an empirical distribution should be used in the PRA (Table 2). 
+
+```{r descstats_ED, eval=TRUE, include=FALSE}
+
+# Since zero values are a problem, assume zero is equal to 1 day of occupancy
+df_EDsampHist <- dplyr::mutate(df_EDsampHist
+                , NumYearsAdj = (12*NumYears + (1/365))/12)
+
+descEDcont <- fitdistrplus::descdist(df_EDsampHist$NumYears, boot = 1000)
+df_descED <- data.frame(Min=as.double(descEDcont$min)
+             , Max=as.double(descEDcont$max)
+             , Median=round(as.double(descEDcont$median),5)
+             , Mean=round(as.double(descEDcont$mean),5)
+             , Stdev=round(as.double(descEDcont$sd),5)
+             , Skewness=round(as.double(descEDcont$skewness),5)
+             , Kurtosis=round(as.double(descEDcont$kurtosis),5)
+             , Method=as.character(descEDcont$method)
+             , Data="Not adjusted")
+
+descEDAdj <- fitdistrplus::descdist(df_EDsampHist$NumYearsAdj
+                   , boot = 1000, graph = FALSE)
+df_descED <- rbind(df_descED
+           , data.frame(Min=round(as.double(descEDAdj$min),5)
+             , Max=round(as.double(descEDAdj$max),5)
+             , Median=round(as.double(descEDAdj$median),5)
+             , Mean=round(as.double(descEDAdj$mean),5)
+             , Stdev=round(as.double(descEDAdj$sd),5)
+             , Skewness=round(as.double(descEDAdj$skewness),5)
+             , Kurtosis=round(as.double(descEDAdj$kurtosis),5)
+             , Method=as.character(descEDAdj$method)
+             , Data="Adjusted"))
+
+desc_caption <- "Descriptive statistics of 2017 AHS data"
+
+knitr::kable(df_descED, escape=FALSE, format=report_format, digits = 5
+       , col.names=colnames(df_descED), caption = desc_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = TRUE
+               , position = "left", fixed_thead = TRUE)
+
+rm(descED, descEDAdj)
+
+```
+
+```{r fit_ED, eval=TRUE, include=TRUE}
+
+# Use pkg fitdistrplus to fit Weibull, gamma, and lognormal distributions
+ED_fitweibull <- fitdistrplus::fitdist(df_EDsampHist$NumYearsAdj, "weibull"
+                    , method = "mle", lower = c(0.0)
+                    , start = list(scale = 1, shape = 1))
+ED_fit_gamma <- fitdistrplus::fitdist(df_EDsampHist$NumYearsAdj, "gamma"
+                    , method = "mle", lower = c(0.0)
+                    , start = list(scale = 1, shape = 1))
+ED_fitlognorm <- fitdistrplus::fitdist(df_EDsampHist$NumYearsAdj, "lnorm"
+                    , method = "mle")
+
+# Goodness of fit results
+gof_ED_weib <- fitdistrplus::gofstat(ED_fitweibull)
+gof_ED_gamma <- fitdistrplus::gofstat(ED_fit_gamma)
+gof_ED_lnorm <- fitdistrplus::gofstat(ED_fitlognorm)
+nsamp <- nrow(df_EDsampHist)
+ADstatwb <- as.numeric(gof_ED_weib$ad)
+ADstarwb <- (ADstatwb)^2 * (1 + (0.75/nsamp) + (2.25/(nsamp)^2))
+ADstatln <- as.numeric(gof_ED_lnorm$ad)
+ADstarln <- (ADstatln)^2 * (1 + (0.75/nsamp) + (2.25/(nsamp)^2))
+ADstatgamma <- as.numeric(gof_ED_gamma$ad)
+ADstargamma <- (ADstatgamma)^2 * (1 + (0.75/nsamp) + (2.25/(nsamp)^2))
+
+df_gof <- data.frame(Distribution = "Weibull"
+           , AD_statistic = gof_ED_weib$ad
+           , AD_adj = ADstarwb
+           , AD_result = gof_ED_weib$adtest
+           , KS_statistic = gof_ED_weib$ks
+           , KS_result = gof_ED_weib$kstest
+           , AIC = round(gof_ED_weib$aic,0)
+           , BIC = round(gof_ED_weib$bic,0))
+df_gof <- rbind(df_gof, data.frame(Distribution = "Gamma"
+           , AD_statistic = gof_ED_gamma$ad
+           , AD_adj = ADstargamma
+           , AD_result = gof_ED_gamma$adtest
+           , KS_statistic = gof_ED_gamma$ks
+           , KS_result = gof_ED_gamma$kstest
+           , AIC = round(gof_ED_gamma$aic,0)
+           , BIC = round(gof_ED_gamma$bic,0)))
+df_gof <- rbind(df_gof, data.frame(Distribution = "Lognormal"
+           , AD_statistic = round(gof_ED_lnorm$ad,0)
+           , AD_adj = ADstarln
+           , AD_result = gof_ED_lnorm$adtest
+           , KS_statistic = gof_ED_lnorm$ks
+           , KS_result = gof_ED_lnorm$kstest
+           , AIC = round(gof_ED_lnorm$aic,0)
+           , BIC = round(gof_ED_lnorm$bic,0)))
+rownames(df_gof) <- NULL
+
+gof_caption <- "Goodness of fit results for 2017 AHS data"
+knitr::kable(df_gof, escape=FALSE, format=report_format, digits=3
+       , col.names=colnames(df_gof), caption = gof_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = TRUE
+               , position = "left", fixed_thead = TRUE)
+
+# ggplot2 version of above graphic
+dcomp <- fitdistrplus::cdfcomp(list(ED_fit_gamma, ED_fitweibull)
+                , legendtext = c("gamma","Weibull"),
+  xlab = "Number of years", xlim = c(0, 90),
+  fitcol = c("red","blue"), fitlty = 1,
+  xlegend = "topright", plotstyle = "ggplot", addlegend = FALSE)
+dcomp + ggplot2::theme_minimal() + ggplot2::ggtitle("AHS 2017 occupancy")
+
+# ggplot2 version of histogram -- really crappy
+# EDcont_ddens <- fitdistrplus::denscomp(list(ED_fit_gamma, ED_fitweibull)
+#                                        , legendtext = c("gamma","Weibull")
+#                                        , main = "Histogram of occupancy"
+#                                        , xlab = "Number of years"
+#                                        # , xlim = c(0, 90)
+#                                        , fitcol = c("red","blue")
+#                                        , fitlty = 1
+#                                        , xlegend = "bottom"
+#                                        , plotstyle = "ggplot"
+#                                        , addlegend = TRUE)
+# EDcont_ddens + ggplot2::theme_minimal() +
+#     ggplot2::ggtitle("AHS 2017 Occupancy")
+
+# Generate qqplot
+set.seed(123)
+sampq <- quantile(df_EDsampHist$NumYears, probs=seq(0.01, 0.99, 0.01))
+theorqg <- qgamma(ppoints(length(sampq)), shape = 0.4682031
+         , scale = 24.9173754)
+theorqw <- qweibull(ppoints(length(sampq)), shape = 0.6230204
+         , scale = 9.2477465)
+df_qq <- as.data.frame(cbind(theorqg, theorqw, sampq))
+
+ggplot2::ggplot(df_qq, ggplot2::aes(x=theorqg, y=sampq)) +
+  ggplot2::geom_point(color="red", shape = 1) +
+  ggplot2::geom_point(ggplot2::aes(x=theorqw, y=sampq)
+            , color="blue", shape = 1) +
+  ggplot2::geom_abline(color="black", weight=1) +
+  ggplot2::xlim(0,85) +
+  ggplot2::ylim(0,85) +
+  ggplot2::theme_bw() +
+  ggplot2::labs(title="QQ Plot for 2017 AHS survey data (gamma distribution)"
+         , subtitle="Years residing in one house"
+         , caption = ""
+         , x = "Theoretical distribution"
+         , y = "Empirical distribution") +
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+          , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+          , axis.text = ggplot2::element_text(size=10)
+          , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+          , legend.position = "none")
+
+rm(ED_fitlognorm, ED_fitweibull, df_gof, gof_ED_gamma, gof_ED_lnorm
+  , gof_ED_weib, desc_caption, gof_caption)
+
+
+```
+
+```{r ED_discrete, echo=FALSE}
+
+# Cullen-Frey graph for discrete options
+descED <- fitdistrplus::descdist(df_EDsampHist$NumYears+1,discrete = TRUE
+                                 , boot = 1000)
+
+# Discrete fit and gof tests
+ED_fitnbinom <- fitdistrplus::fitdist(df_EDsampHist$NumYears+1, "nbinom")
+ED_fitpois <- fitdistrplus::fitdist(df_EDsampHist$NumYears+1, "pois")
+
+ED_gofdisc <- fitdistrplus::gofstat(list(ED_fitnbinom, ED_fitpois)
+                                      , fitnames = c("nbinom", "pois"))
+# GOF table
+df_EDchi2 <- as.data.frame(ED_gofdisc$chisqtable)
+colnames(df_EDchi2) <- c("ObsCounts", "NbinomCounts", "PoisCounts")
+df_EDchi2 <- df_EDchi2 %>%
+    dplyr::mutate(NbinomCounts = round(NbinomCounts, 0)
+                  , PoisCounts = round(PoisCounts, 0)
+                  , diffObsNbinom = round(abs(ObsCounts - NbinomCounts),0)
+                  , diffPct = round(diffObsNbinom*100/ObsCounts, 0)) %>%
+    tibble::rownames_to_column(var="NumYears") %>%
+    dplyr::select(NumYears, ObsCounts, NbinomCounts, diffObsNbinom, diffPct)
+
+gof_EDheadings <- c("Number of years occupancy", "Observed Counts"
+                  , "Theoretical counts (Negative binomial)"
+                  , "Absolute value difference"
+                  , "Percent difference")
+gof_EDcaption <- "Chi-square table for 2017 AHS data"
+knitr::kable(df_EDchi2, escape=FALSE, format=report_format
+             , format.args = list(big.mark=",")
+             , col.names=gof_EDheadings, caption = gof_EDcaption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+# Graph histogram and ECDF
+EDdisc_ddens <- fitdistrplus::denscomp(ED_fitnbinom
+                                       , legendtext = c("Negative binomial"
+                                                        , "Empirical data")
+                                       , main = "Histogram of occupancy"
+                                       , xlab = "Number of years"
+                                       , xlim = c(0, 90)
+                                       , fitcol = "blue", fitlty = 1
+                                       , xlegend = "bottom"
+                                       , plotstyle = "ggplot"
+                                       , addlegend = TRUE)
+EDdisc_ddens + ggplot2::theme_minimal()
+
+EDdisc_dcomp <- fitdistrplus::cdfcomp(ED_fitnbinom
+                                      , legendtext = c("Negative binomial"
+                                                        , "Empirical data")
+                                      , main = "ECDF of occupancy"
+                                      , xlegend="bottom"
+                                      , xlab = "Number of years"
+                                      , xlim = c(0, 90)
+                                      , fitcol = "blue", fitlty = 1
+                                      , plotstyle = "ggplot"
+                                      , addlegend = TRUE)
+EDdisc_dcomp + ggplot2::theme_minimal()
+
+rm(descED, df_EDchi2, ED_fitnbinom, ED_fitpois, ED_gofdisc, EDdisc_dcomp
+   , EDdisc_ddens)
+
+```
+
+```{r ED_empirical}
+
+# Generate empirical density function and probabilities
+# Source: https://stats.stackexchange.com/questions/78711/how-to-find-estimate-probability-density-function-from-density-function-in-r
+
+# Generate data frame for MC (variability)
+ED_dfxn <- approxfun(density(df_EDsampHist$NumYears))
+df_ED_EProb <- data.frame(cbind(unique(df_EDsampHist$NumYears)
+                    , ED_dfxn(unique(df_EDsampHist$NumYears))))
+colnames(df_ED_EProb) <- c("NumYears", "EProb")
+
+# Generate df for table in text
+grandTotalEDProbs <- df_ED_EProb %>%
+    dplyr::select(EProb) %>%
+    dplyr::summarise(sumProb = sum(EProb))
+grandTotalEDProbs <- as.numeric(grandTotalEDProbs)
+
+df_ED_EProb_char <- df_ED_EProb %>%
+    dplyr::mutate(NumYears = as.character(NumYears))
+df_ED_EProb_char <- rbind(df_ED_EProb_char
+                          , c(paste0(">=", max(df_ED_EProb$NumYears)+1)
+                              , 1-grandTotalEDProbs))
+df_ED_EProb_char <- dplyr::mutate(df_ED_EProb_char
+                                  , EProb = signif(as.numeric(EProb)
+                                                   , digits=3))
+
+ED_EProb_headings <- c("Number of years occupancy", "Probability")
+ED_EProb_caption <- "Exposure duration empirical probabilities"
+knitr::kable(df_ED_EProb_char, escape=FALSE, format=report_format, align="cr"
+             , format.args = list(big.mark=",", digits=3)
+             , col.names=ED_EProb_headings, caption = ED_EProb_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+rm(df_ED_EProb_char, ED_EProb_caption, ED_EProb_headings, gof_EDcaption
+   , gof_EDheadings, grandTotalEDProbs, grandTotalPeople)
+
+# Use full empirical distribution data df_ED_EProb variability
+# Truncate to >=7years and max AT, which will be 85 years (ET <= AT)
+df_ED_temp <- df_ED_EProb[df_ED_EProb$NumYears>=7 & df_ED_EProb$NumYears<=85,]
+# Underlying data are in df_EDsampHist
+
+```
+
+### Exposure Frequency __(CURRENTLY SIMILAR TO RON'S SECTION)__
+
+In point estimate risk estimates, the Exposure Frequency (EF) for a resident is typically defined as 350 days per year. This is the value currently used for developing residential regional screening levels (RSL) by EPA for soil, air, and tap water (USEPA, 2020). In human health risk assessment, a central tendency evaluation is also conducted where exposure parameters are typically defined by means and medians rather than upper percentile values of distributions. EPA defines the central tendency default exposure frequency as 234 days per year; this corresponds to the fraction of time that is spent at home (64 percent).
+
+No distributions of the exposure frequency data were provided. To assume some degree of variability, a uniform distribution is recommended with a minimum of 234 days per year and a maximum of 350 days per year.
+
+```{r EF_unif}
+
+df_EFvar <- runif(nsamps, 234, 350)
+desc_EFvar <- fitdistrplus::descdist(df_EFvar, graph=FALSE)
+df_descEFvar <- data.frame(Min=round(as.double(desc_EFvar$min),2)
+                         , Max=round(as.double(desc_EFvar$max),1)
+                         , Median=round(as.double(desc_EFvar$median),1)
+                         , Mean=round(as.double(desc_EFvar$mean),1)
+                         , Stdev=round(as.double(desc_EFvar$sd),2)
+                         , Skewness=round(as.double(desc_EFvar$skewness),3)
+                         , Kurtosis=round(as.double(desc_EFvar$kurtosis),3)
+                         , Method=as.character(desc_EFvar$method))
+
+desc_caption <- "Descriptive statistics for variability in exposure frequency (d/y)"
+knitr::kable(df_descEFvar, escape=FALSE, format=report_format
+             , col.names=colnames(df_descEFvar), caption = desc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = TRUE
+                              , position = "left", fixed_thead = TRUE)
+
+rm(desc_EFvar, df_descEFvar, desc_caption, df_EFvar)
+
+```
+
+
+### Exposure Time __(ADDED GRAPHICS)__
+
+Typically for residential exposure, it is assumed that the hypothetical exposed individual is present 24 hours per day for exposure to air contaminants. This fails to account for any time away from the residence, such when residents leave the exposure area for work or school. US EPA’s Exposure Factors Handbook (2011) provides values summarizing minutes per day spent indoors and outdoors while at a residence.
+
+__This is where Ron's table should go__
+
+#### Create Sample and Fitted Distribution
+
+For the PRA, a specific distribution must be specified. To do this, we must first create a sample from the theoretical distribution. The sample starts with the full normal distribution, which is then truncated to the minimum and maximum thresholds. A fitted model will be used to evaluate uncertainy in the mean and standard deviation (see Section Uncertainty, ET).
+
+```{r ET_sample}
+
+# Generate sample and truncate
+lbound <- 4; ubound <- 24
+df_ETvar <- rnorm(nsamps, mean=18.1, sd=5.2)
+df_ETvar <- df_ETvar[df_ETvar >= lbound & df_ETvar <= ubound]
+
+# Descriptive statistics
+desc_ETvar <- fitdistrplus::descdist(df_ETvar, boot=1000, graph = FALSE
+                                     , obs.pch = 5)
+df_descETvar <- data.frame(Min=round(as.double(desc_ETvar$min),2)
+                         , Max=round(as.double(desc_ETvar$max),1)
+                         , Median=round(as.double(desc_ETvar$median),1)
+                         , Mean=round(as.double(desc_ETvar$mean),1)
+                         , Stdev=round(as.double(desc_ETvar$sd),2)
+                         , Skewness=round(as.double(desc_ETvar$skewness),3)
+                         , Kurtosis=round(as.double(desc_ETvar$kurtosis),3)
+                         , Method=as.character(desc_ETvar$method))
+desc_caption <- "Descriptive statistics for variability in exposure time (h/d)"
+knitr::kable(df_descETvar, escape=FALSE, format=report_format
+             , col.names=colnames(df_descETvar), caption = desc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE)
+
+```
+
+
+```{r ET_var, echo=FALSE}
+
+# Fit truncated normal distribution: required functions 
+# Source: https://rdrr.io/cran/fitdistrplus/f/vignettes/FAQ.Rmd
+library(TruncatedDistributions)
+dtnorm <- function(x, mean, sd, low, upp)
+{
+  PU <- pnorm(upp, mean=mean, sd=sd)
+  PL <- pnorm(low, mean=mean, sd=sd)
+  dnorm(x, mean, sd) / (PU-PL) * (x >= low) * (x <= upp) 
+}
+ptnorm <- function(q, mean, sd, low, upp)
+{
+  PU <- pnorm(upp, mean=mean, sd=sd)
+  PL <- pnorm(low, mean=mean, sd=sd)
+  (pnorm(q, mean, sd)-PL) / (PU-PL) * (q >= low) * (q <= upp) + 1 * (q > upp)
+}
+
+# Fit the data
+fit_ET_tnorm <- fitdistrplus::fitdist(df_ETvar, "tnorm", method="mle"
+                            , start=list(mean=18.1, sd=5.2)
+                            , fix.arg=list(low=min(df_ETvar)
+                                           , upp=max(df_ETvar)))
+
+# Get GOF stats
+gofETntrunc <- fitdistrplus::gofstat(fit_ET_tnorm, fitnames="tnorm")
+df_gofET <- data.frame(Distribution = "Truncated normal (4,24)"
+                     # , AD_statistic = gofETntrunc$ad
+                     # , AD_result = gofETntrunc$adtest
+                     , KS_statistic = gofETntrunc$ks
+                     , KS_result = gofETntrunc$kstest
+                     , AIC = gofETntrunc$aic
+                     , BIC = gofETntrunc$bic)
+rownames(df_gofET) <- NULL
+
+gof_ETcaption <- "Goodness of fit results for exposure time"
+knitr::kable(df_gofET, escape=FALSE, format=report_format
+             , col.names=colnames(df_gofET), caption = gof_ETcaption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE)
+
+# Graph histogram and ECDF
+ET_ddens <- fitdistrplus::denscomp(fit_ET_tnorm
+                        , legendtext = c("Truncated normal (4,24)"
+                                         , "Empirical data")
+                        , main = "Histogram of exposure time"
+                        , xlab = "Hours per day", xlim = c(0, 25)
+                        , fitcol = "red", fitlty = 1
+                        , xlegend = "bottom"
+                        , plotstyle = "ggplot", addlegend = TRUE)
+ET_ddens + ggplot2::theme_minimal()
+
+ET_dcomp <- fitdistrplus::cdfcomp(fit_ET_tnorm
+                        , legendtext = c("Truncated normal (4,24)"
+                                         , "Empirical data")
+                        , main = "CDF of exposure time"
+                        , xlab = "Hours per day", xlim = c(0, 25)
+                        , fitcol = "red", fitlty = 1
+                        , xlegend = "bottom", plotstyle = "ggplot"
+                        , addlegend = TRUE)
+ET_dcomp + ggplot2::theme_minimal()
+
+# Keep fit_ET_tnorm as fitted distribution, df_ETvar as data source
+
+rm(desc_ETvar, df_descETvar, df_gofET, ET_dcomp, ET_ddens, gofETntrunc
+   , desc_caption, gof_ETcaption, lbound, ubound)
+
+```
+
+### Averaging Time __(SIGNIFICANTLY REVISED)__
+
+In point estimate risk estimates, the Averaging Time (AT) for any receptor when evaluating a carcinogen is equal to a lifetime of 70 years. This value is considered a constant for evaluating all carcinogens. This is the value currently used for developing residential regional screening levels (RSL) by EPA for soil, air, and tap water (USEPA, 2020). Current data suggests that 78 years is a more appropriate value to reflect the average life expectancy. Moreover, in their lifetable analysis used to derive a unit risk for EtO, USEPA assumes a life time value of 85 years (USEPA, 2011). This assumption can result in disconcordance of definitions for lifetime and can overestimate risk for exposure scenarios with lifetimes defined as greater than 85 years.
+
+Averaging time is the least sensitive variable based on a Tier 1 sensitivity analysis (US EPA 2001). Nonetheless, using a point value of 70 years, as recommended in the Exposure Factors Handbook (US EPA 2011) does not reflect the variability inherent in life spans. Current data suggests that the human lifespan has increased and that 70 years may be low. __[CHRIS K: can you add a statement about how the tox data reflect 70 year lifespan and therefore using 85 years may overestimate risk?]__
+
+#### Alternate Data
+
+The data used by EPA derive from the Centers for Disease Control (CDC) National Vital Statistics Report (Xu et al. 2010) and are based on data collected in 2007. Newer data are available, with the most recent life tables published in 2019 for data collected in 2017 (Arias and Xu 2019a). Table 1 in this publication presents the probability of dying in each year of life, up to 100 years, with a final category representing >100 years of life. These data are available for download from the CDC website (Arias and Xu 2019b) and are summarized here.
+
+```{r AT_data, echo=FALSE, fig.width=7, fig.height=7}
+
+wd <- file.path(getwd(), "Data", "AveragingTime_y")
+fn2007 <- file.path(wd, "LIFETIME DISTRIBUTION.xlsx")
+df_AT07 <- readxl::read_excel(fn2007, sheet = 1, range = "D4:F21"
+                            , trim_ws = TRUE
+                            , col_names = c("Age","CumFractDying","FractDying")
+                            , col_types = c("numeric", "numeric", "numeric"))
+
+fn2017 <- file.path(wd, "2017LifeTable_ProbDyingByYearAge_Table01.xlsx")
+df_AT17 <- readxl::read_excel(fn2017, sheet = "Table 1 cleaned", skip = 1
+                            , trim_ws = TRUE
+                            , col_names = c("Age", "ProbDying", "NumDying")
+                            , col_types = c("numeric", "numeric", "numeric"))
+
+grandTotalPeople <- as.numeric(colSums(df_AT17[,"NumDying"]))
+
+df_AT17 <- df_AT17 %>%
+    dplyr::select(Age, NumDying) %>%
+    dplyr::mutate(Fraction = NumDying/grandTotalPeople
+                  , CumFract = cumsum(Fraction))
+
+# Generate graphs
+pal_dot <- viridis::viridis(4)
+
+AT07_caption <- "US EPA 2011"
+p_cdf2007 <- ggplot2::ggplot(df_AT07, ggplot2::aes(x=Age, y=CumFractDying)) +
+    ggplot2::geom_smooth(method = "loess", se=FALSE, color=pal_dot[4]
+                         , size = 1) +
+    ggplot2::geom_point(color = pal_dot[3], shape=20) +
+    ggplot2::geom_vline(ggplot2::aes(xintercept=18), color = "red", size=1) +
+    ggplot2::geom_vline(ggplot2::aes(xintercept=85), color = "red", size=1) +
+    ggplot2::annotate(geom="text", y=0.80, x=23, label="18 years", color="red"
+                      , size = 3) +
+    ggplot2::annotate(geom="text", y=0.15, x=78, label="85 years", color="red"
+                      , size = 3) +
+    ggplot2::xlim(0,100) +
+    ggplot2::ylim(0,1) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="CDF of lifespan (2007 data)"
+                  # , subtitle=""
+                  , caption = AT07_caption
+                  , x = "Years", y = "Cumulative Fraction") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=10)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+AT17_caption <- "Arias & Xu, 2019b, Table 1"
+p_cdf2017 <- ggplot2::ggplot(df_AT17, ggplot2::aes(x=Age, y=CumFract)) +
+    ggplot2::geom_smooth(method = "loess", se=FALSE, color=pal_dot[2]
+                         , size = 1) +
+    ggplot2::geom_point(color = pal_dot[1], shape=20) +
+    ggplot2::geom_vline(ggplot2::aes(xintercept=18), color = "red", size=1) +
+    ggplot2::geom_vline(ggplot2::aes(xintercept=85), color = "red", size=1) +
+    ggplot2::annotate(geom="text", y=0.80, x=23, label="18 years", color="red"
+                      , size = 3) +
+    ggplot2::annotate(geom="text", y=0.15, x=78, label="85 years", color="red"
+                      , size = 3) +
+    ggplot2::xlim(0,100) +
+    ggplot2::ylim(0,1) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="CDF of lifespan (2017 Life Table data)"
+                  # , subtitle=""
+                  , caption = AT17_caption
+                  , x = "Years", y = "Cumulative Fraction") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=10)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+hist_caption <- "Arias & Xu, 2019b, Table 1"
+p_histAT2017 <- ggplot2::ggplot(as.data.frame(df_AT17)
+                                       , ggplot2::aes(x=Age, y=NumDying)) +
+    ggplot2::geom_col(color="black", fill="light gray") +
+    ggplot2::geom_vline(ggplot2::aes(xintercept=18), color = "red", size=1) +
+    ggplot2::geom_vline(ggplot2::aes(xintercept=85), color = "red", size=1) +
+    ggplot2::annotate(geom="text", y=1000, x=23, label="18 years", color="red"
+                      , size = 3) +
+    ggplot2::annotate(geom="text", y=3000, x=75, label="85 years", color="red"
+                      , size = 3) +
+    ggplot2::xlim(0,100) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Histogram of Lifespan (2017 Life Table data)"
+                  , subtitle="Years of age at death"
+                  , caption = hist_caption
+                  , x = "Years", y = "Number of people") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=10)
+                   , plot.caption = ggplot2::element_text(hjust=1, size = 8)
+                   , legend.position = "none")
+
+gridExtra::grid.arrange(p_histAT2017, p_cdf2017, p_cdf2007, nrow=3, ncol=1)
+
+rm(fn2007, fn2017, grandTotalPeople, hist_caption, AT17_caption, pal_dot)
+
+```
+
+#### Identify Theoretical Distributions
+
+A Tier 1 sensitivity analysis (USEPA 2001) using varied point estimate for each term in the Exposure Concentration equation indicated that Averaging Time is the least influential factor, based on a range of 70 to 85 years. However, since that range is known to be For this reason, it is desirable to obtain the best estimate of the probability distribution function for inclusion in the PRA. As described above, the 2017 AHS Occupancy data for adults aged 18 and older is the most suitable data set for this purpose. Specifically, there are sufficient data to fit to a theoretical probability distribution or to use in an empirical distribution function for the PRA. The data are representative of the target population, as well (adults, age 18 and over).
+
+#### Goodness of Fit testing
+
+Mechanistically, a Weibull distribution can explain lifetime data, since it models the "life" of a component when the failure rate changes with time. Similarly, the gamma distribution has a plausible mechanism, since it describes the time until an event occurs.
+
+The package "fitdistrplus" (Delignette-Muller and Dutang 2015) provides a variety of functions well-suited to fitting empirical data to a variety of theoretical distributions, including the Weibull and gamma. Neither of these distributions provide an acceptable fit. Large sample sizes may increase the likelihood of rejection by the goodness of fit tests employed here (Delignette-Muller and Dutang, 2020), so graphical representations of fit are also provided. The Gamma and Weibull distributions converge on the same parameters, but a gamma distribution is more mechanistically plausible. 
+
+Using a similar argument as for exposure duration, lifetime data are presented as integers (counts), so a discrete distribution may be more applicable. In particular, the negative binomial distribution was evaluated for its fit to the empirical data. However, the discrete distribution displays a worse fit than the continuous ones. Given the poor fit from any mechanistically plausible theoretical distribution, an empirical distribution should be used in the PRA. 
+
+```{r AT_dist, echo=FALSE}
+
+# Generate raw sample (vector of ages at death)
+df_ATsample <- rep(as.integer(df_AT17$Age), as.integer(df_AT17$NumDying))
+df_ATsample <- as.data.frame(df_ATsample)
+colnames(df_ATsample)[1] <- "AgeAtDeath"
+
+descAT17disc <- fitdistrplus::descdist(df_ATsample$AgeAtDeath, discrete=TRUE
+                                       , boot = 1000, graph = FALSE)
+
+descAT17 <- fitdistrplus::descdist(df_ATsample$AgeAtDeath, boot = 1000)
+df_descAT17 <- data.frame(Min=as.double(descAT17$min)
+                         , Max=as.double(descAT17$max)
+                         , Median=round(as.double(descAT17$median),3)
+                         , Mean=round(as.double(descAT17$mean),3)
+                         , Stdev=round(as.double(descAT17$sd),3)
+                         , Skewness=round(as.double(descAT17$skewness),3)
+                         , Kurtosis=round(as.double(descAT17$kurtosis),3)
+                         , Method=as.character(descAT17$method))
+
+desc_caption <- "Descriptive statistics of 2017 lifespan data (Arias & Xu 2019)"
+knitr::kable(df_descAT17, escape=FALSE, format=report_format
+             , col.names=colnames(df_descAT17), caption = desc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = TRUE
+                              , position = "left", fixed_thead = TRUE)
+
+```
+
+```{r gof_AT, echo=FALSE}
+
+fitAT_weib <- fitdistrplus::fitdist(df_ATsample$AgeAtDeath, "weibull"
+                                    , method = "mle")
+fitAT_gamma <- fitdistrplus::fitdist(df_ATsample$AgeAtDeath, "gamma"
+                                     , method = "mle")
+fitAT_nbinom <- fitdistrplus::fitdist(df_ATsample$AgeAtDeath, "nbinom")
+
+gof_AT_weib <- fitdistrplus::gofstat(fitAT_weib)
+gof_AT_gamma <-fitdistrplus::gofstat(fitAT_gamma)
+gof_AT_nbinom <- fitdistrplus::gofstat(fitAT_nbinom)
+
+df_gof <- data.frame(Distribution = "Weibull"
+                     , AD_statistic = gof_AT_weib$ad
+                     , AD_result = gof_AT_weib$adtest
+                     , KS_statistic = gof_AT_weib$ks
+                     , KS_result = gof_AT_weib$kstest
+                     , AIC = gof_AT_weib$aic
+                     , BIC = gof_AT_weib$bic)
+df_gof <- rbind(df_gof, data.frame(Distribution = "Gamma"
+                     , AD_statistic = gof_AT_gamma$ad
+                     , AD_result = gof_AT_gamma$adtest
+                     , KS_statistic = gof_AT_gamma$ks
+                     , KS_result = gof_AT_gamma$kstest
+                     , AIC = gof_AT_gamma$aic
+                     , BIC = gof_AT_gamma$bic))
+df_gof <- rbind(df_gof, data.frame(Distribution = "Negative binomial"
+                     , AD_statistic = ""
+                     , AD_result = ""
+                     , KS_statistic = ""
+                     , KS_result = ""
+                     , AIC = gof_AT_nbinom$aic
+                     , BIC = gof_AT_nbinom$bic))
+rownames(df_gof) <- NULL
+
+gof_caption <- "Goodness of fit results for 2017 life table data"
+knitr::kable(df_gof, escape=FALSE, format=report_format
+             , col.names=colnames(df_gof), caption = gof_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = TRUE
+                              , position = "left", fixed_thead = TRUE)
+
+# Graph results
+dcompAT <- fitdistrplus::denscomp(list(fitAT_weib #, fitAT_nbinom
+                                       , fitAT_gamma)
+                , main = "Histogram of lifespan (AHS 2017)"
+                , legendtext = c("Weibull" #, "negative binomial"
+                                 , "gamma")
+                , xlab = "Number of years", xlim = c(0, 100)
+                , fitcol = c("darkorchid" #,"blue"
+                             ,"forestgreen")
+                # , fitalpha = c(0.3, 0.2, 0.1)
+                , fitlty = 1, xlegend = "topright", plotstyle = "ggplot"
+                , addlegend = TRUE)
+dcompAT + ggplot2::theme_minimal() +
+    ggplot2::geom_vline(xintercept = 18, color="red") +
+    ggplot2::geom_vline(xintercept = 85, color="red") +
+    ggplot2::annotate(geom="text", label="18", x=21, y=0.035, color="red") +
+    ggplot2::annotate(geom="text", label="85", x=82, y=0.035, color="red")
+
+ccompAT <- fitdistrplus::cdfcomp(list(fitAT_weib #, fitAT_nbinom
+                                      , fitAT_gamma)
+                , main = "CDF of lifespan (AHS 2017)"
+                , legendtext = c("Weibull" #, "negative binomial"
+                                 , "gamma")
+                , xlab = "Number of years", xlim = c(0, 100)
+                , fitcol = c("darkorchid" #,"blue"
+                             ,"forestgreen")
+                , fitlty = 1, xlegend = "topright", plotstyle = "ggplot"
+                , addlegend = TRUE)
+ccompAT + ggplot2::theme_minimal() +
+    ggplot2::geom_vline(xintercept = 18, color="red") +
+    ggplot2::geom_vline(xintercept = 85, color="red") +
+    ggplot2::annotate(geom="text", label="18", x=21, y=0.875, color="red") +
+    ggplot2::annotate(geom="text", label="85", x=82, y=0.875, color="red")
+
+rm(ccompAT, dcompAT, descAT17, descAT17disc, df_AT07, df_AT17, df_gof
+   , fitAT_gamma, fitAT_weib, fitAT_nbinom, gof_AT_gamma, gof_AT_weib
+   , gof_AT_nbinom, p_cdf2007, p_cdf2017, p_histAT2017, AT07_caption
+   , desc_caption, gof_caption, df_descAT17, df_ATvar, df_AT_adult)
+
+```
+
+Of the mechanistically plausible distributions, none fit the empirical data. Only the Weibull distribution appears somewhat close. Therefore, the empirical distribution will be used in the PRA, truncated between 18 and 85 years of age.
+
+```{r AT_emp_all}
+
+# Generate empirical density function and probabilities
+# Source: https://stats.stackexchange.com/questions/78711/how-to-find-estimate-probability-density-function-from-density-function-in-r
+
+AT_dfxn <- approxfun(density(df_ATsample$AgeAtDeath))
+df_AT_EProb <- data.frame(cbind(unique(df_ATsample$AgeAtDeath)
+                    , AT_dfxn(unique(df_ATsample$AgeAtDeath))))
+colnames(df_AT_EProb) <- c("AgeAtDeath", "EProb")
+grandTotalATProbs <- df_AT_EProb %>%
+    dplyr::select(EProb) %>%
+    dplyr::summarise(sumProb = sum(EProb))
+grandTotalATProbs <- as.numeric(grandTotalATProbs)
+
+df_AT_EProb_char <- df_AT_EProb %>%
+    dplyr::mutate(AgeAtDeath = as.character(AgeAtDeath))
+df_AT_EProb_char <- rbind(df_AT_EProb_char
+                           , c(paste0(">="
+                                      , max(df_AT_EProb$AgeAtDeath)+1)
+                               , 1-grandTotalATProbs))
+df_AT_EProb_char <- dplyr::mutate(df_AT_EProb_char
+                                  , EProb = signif(as.numeric(EProb)
+                                                   , digits=3))
+
+AT_EProb_headings <- c("Age at death", "Probability")
+AT_EProb_caption <- "Averaging time empirical probabilities"
+knitr::kable(df_AT_EProb_char, escape=FALSE, format=report_format, align="cr"
+             , format.args = list(big.mark=",", digits=3)
+             , col.names=AT_EProb_headings, caption = AT_EProb_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+```
+
+
+
+```{r AT_emp_adults}
+
+# Use empirical distribution data df_AT_EProb in MC for variability
+# Truncate to between 18 and 85
+df_AT_adult <- df_ATsample[df_ATsample$AgeAtDeath>=18 & df_ATsample$AgeAtDeath<=85,]
+
+# get density function to calculate probabilities
+AT_dfxn_trunc <- approxfun(density(df_AT_adult))
+df_AT_EProb_adult <- data.frame(cbind(unique(df_AT_adult)
+                    , AT_dfxn(unique(df_AT_adult))))
+colnames(df_AT_EProb_adult) <- c("AgeAtDeath", "EProb")
+
+# Check that probabilities add to ~1
+grandTotalATProbs <- df_AT_EProb_adult %>%
+    dplyr::select(EProb) %>%
+    dplyr::summarise(sumProb = sum(EProb))
+grandTotalATProbs <- as.numeric(grandTotalATProbs)
+
+
+df_AT_EProb_char <- df_AT_EProb_adult %>%
+    dplyr::mutate(AgeAtDeath = as.character(AgeAtDeath))
+df_AT_EProb_char <- dplyr::mutate(df_AT_EProb_char
+                                  , EProb = signif(as.numeric(EProb)
+                                                   , digits=3))
+
+AT_EProb_headings <- c("Age at death", "Probability")
+AT_EProb_caption <- "Averaging time empirical probabilities (adults only)"
+knitr::kable(df_AT_EProb_char, escape=FALSE, format=report_format, align="cr"
+             , format.args = list(big.mark=",", digits=3)
+             , col.names=AT_EProb_headings, caption = AT_EProb_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+rm(AT_EProb_caption, AT_EProb_headings, df_AT_EProb_char, grandTotalATProbs)
+
+# Generate sample and truncate
+lbound <- 18; ubound <- 85
+df_ATvar <- mc2d::rempiricalC(nsamps, min=lbound, max=ubound
+                              , values=df_AT_EProb_adult$AgeAtDeath
+                              , prob = df_AT_EProb_adult$EProb)
+
+rm(lbound, ubound)
+
+```
+
+## Characterizing Uncertainty in Exposure Factors
+
+Uncertainty differs from variability in that it represents our lack of knowledge rather than the random variation attributable to inherent differences in a population (e.g., lifetime) or observed condition in space or time (e.g., contaminant concentration). The more knowledge we acquire about a measurement, the more certain we become of the value of the measurement.
+
+Typically, uncertainty is described in terms of a confidence interval about the estimated measurement. For example, we can describe the estimated mean value of a distribution as $\mu$ with a 95% confidence interval (CI_{2.75} < $\mu$ < CI_{97.5}). If the uncertainty (often measurement error) is considered to be normally distributed, then the confidence interval can be estimated from the following equation (US EPA 2001 RAGS):
+
+$CI = estimate_{parameter} \pm critical value \times SE_{estimate}$
+
+The critical value is obtained from standard tables, such as a z-score table for the normal distribution and is chosed based on the desired significance level.
+
+For data that are lognormally distributed, US EPA (1992) originally recommended using Land's method (1975). This is easily accomplished using the elnormAlt function in the R package "EnvStats" (Millard, 2013). However, more recent guidance from US EPA (2002, OSWER9285-6-10) recognizes deficiencies in Land's method, specifically that it is sensitive to deviation from lognormality and may result in estimated UCLs that are substantially larger than necessary (US EPA, 1997 Lognormal Distribution in Env. Apps.).
+
+Alternately, confidence intervals may be calculated using the Student's t distribution with n-1 degrees of freedom, using the sample mean and standard deviation, the t-critical value for the desired significance level and degrees of freedom, and the number of observations. In R, this can be accomplished using the "mean_se" function of the "ggplot2" package (Wickham 2016). 
+
+Lastly, a number of resampling methods can be used to identify the error distribution about the mean, including bootstrap, jackknife, and Monte Carlo estimation _(SOURCE)_. One option estimating error in distribution parameters utilizes the "bootdist" function of the "fitdistrplus" package (Delignette-Muller and Dutang 2015). This function provides both parametric (for fitted data) and nonparametric methods (for empirical data) for determining uncertainty in specific distribution parameters. 
+
+For this study, we evaluate the uncertainty in CA and ET. Variability in EF is defined as a uniform distribution. Too little information is available to estimate uncertainty about this distribution; therefore, uncertainty in the EF will not be quantified for the MC2D simulation. 
+
+Both ED and AT are defined by empirical distributions. It is imperative to understand the uncertainty in the entire distribution and to define it properly for use in the MC2D simulation. Because this is beyond the scope of this study, we have not evaluated uncertainty in these parameters.
+
+### Ethylene Oxide Concentration
+
+Uncertainty in contaminant concentrations arise from many potential sources, such as sampling methods, frequency, and locations; measurement error; and possible left-censoring resulting from detection limits. Additional uncertainty results from the relationship between the sampled area and the exposure area. For the purposes of this case study, we are simplifying the assessment by defining the sampled area as equal to the exposure area, and that the exposed individual has an equal chance of being exposed to all concentrations observed over the long-term exposure. Therefore, the uncertainty considered here reflects the uncertainty in the distribution resulting both from measurement error and goodness of fit. 
+
+The variability of EtO concentration in air is described by a lognormal distribution with the parameters meanlog = -1.716 and sdlog = 1.455. Table XX presents the parametric bootstrap results describing the 95% confidence interval areound the parameters. This bootstrap model will be used to represent uncertainty in the modeled EtO air concentration in the 2D-MC PRA. The Student's t method is shown for comparison.
+
+```{r CA_uncertainty, echo=FALSE}
+
+# https://stackoverflow.com/questions/21843745/confidence-interval-for-mu-in-a-log-normal-distributions-in-r
+n <- nrow(df_CA)
+alpha <- 0.05
+t_critical_value <- qt(1-alpha/2, n-1) # quantile frdfAirom Student's t dist
+CA_CIstudentst <- ggplot2::mean_se(log(df_CA$Adj_EtO), t_critical_value)
+
+# compute by bootstrapping from fitdist object
+boot_CA <- fitdistrplus::bootdist(fit_CAlnorm
+                                      , bootmethod = "param"
+                                      , niter = nsamps*0.25)
+
+dfAirUncert <- data.frame("Method" = "Bootstrap, parametric"
+                          , "Parameter" = "meanlog"
+                          , "Median" = quantile(boot_CA$estim$meanlog
+                                                , probs = 0.50)
+                          , "LCL2.5" = quantile(boot_CA$estim$meanlog
+                                                , probs = 0.025)
+                          , "UCL97.5" = quantile(boot_CA$estim$meanlog
+                                                , probs = 0.975))
+dfAirUncert <- rbind(dfAirUncert
+                     , data.frame("Method" = "Bootstrap, parametric"
+                          , "Parameter" = "sdlog"
+                          , "Median" = quantile(boot_CA$estim$sdlog
+                                                , probs = 0.50)
+                          , "LCL2.5" = quantile(boot_CA$estim$sdlog
+                                                , probs = 0.025)
+                          , "UCL97.5" = quantile(boot_CA$estim$sdlog
+                                                , probs = 0.975)))
+dfAirUncert <- rbind(dfAirUncert
+                     , data.frame("Method" = "Student's t"
+                          , "Parameter" = "meanlog"
+                          , "Median" = CA_CIstudentst$y
+                          , "LCL2.5" = CA_CIstudentst$ymin
+                          , "UCL97.5" = CA_CIstudentst$ymax))
+dfAirUncert <- dfAirUncert[,c("Parameter","Method","Median","LCL2.5"
+                              ,"UCL97.5")]
+dfAirUncert <- dfAirUncert %>% dplyr::arrange(Parameter)
+rownames(dfAirUncert) <- NULL
+
+AirUnc_caption <- paste("Confidence intervals describing uncertainty"
+                        ,"about air concentration distribution parameters"
+                        , sep = "\n")
+knitr::kable(dfAirUncert, escape=FALSE, format=report_format, digits = 3
+             , col.names=colnames(dfAirUncert), caption = AirUnc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE) %>%
+    kableExtra::collapse_rows(columns=1, valign="top") %>%
+    kableExtra::footnote(paste0("n=",nsamps*0.5))
+
+fitdistrplus::CIcdfplot(boot_CA, "quantile", datapch = 1
+                        , datacol = "dark gray", do.points = FALSE
+                        , main = "Empirical and theoretical CDFs with CI"
+                        , xlab = xlabelCA, ylab = "Probability")
+
+# Keep parametric bootstrap results as describing uncertainty
+# Retained fit_CAlnorm (Var) and boot_CA (U)
+rm(AirUnc_caption, dfAirUncert, n, alpha, t_critical_value, CA_CIstudentst
+   , df_CA, xlabelCA, fit_CAlnorm)
+
+```
+
+### Exposure Time
+
+Exposure time variability is described as a truncated normal distribution having a mean of 18.1, a standard deviation of 5.2, minimum of 4 and maximum of 24 hours per day. The uncertainty about the parameters is determined using the "bootdist" funtion from the "fitdistrplus" package in R (Delignette-Muller and Dutang 2015). We used the nonparametric method to describe the uncertainty about the mean and standard deviation for exposure time, but found that the 95% confidence interval did not include the value of the mean itself. 
+
+```{r ETUnc_boot, echo=FALSE}
+# compute by bootstrapping from fitdist object
+set.seed(123)
+boot_ET <- fitdistrplus::bootdist(fit_ET_tnorm
+                                      , bootmethod = "nonparam"
+                                      , niter = nsamps*0.25)
+
+dfETUncert <- data.frame("Method" = "Bootstrap, nonparametric"
+                          , "Parameter" = "mean"
+                          , "Median" = quantile(boot_ET$estim$mean
+                                                , probs = 0.50)
+                          , "LCL2.5" = quantile(boot_ET$estim$mean
+                                                , probs = 0.005)
+                          , "UCL97.5" = quantile(boot_ET$estim$mean
+                                                , probs = 0.995))
+dfETUncert <- rbind(dfETUncert
+                     , data.frame("Method" = "Bootstrap, nonparametric"
+                          , "Parameter" = "sd"
+                          , "Median" = quantile(boot_ET$estim$sd
+                                                , probs = 0.50)
+                          , "LCL2.5" = quantile(boot_ET$estim$sd
+                                                , probs = 0.005)
+                          , "UCL97.5" = quantile(boot_ET$estim$sd
+                                                , probs = 0.995)))
+dfETUncert <- dfETUncert %>% dplyr::arrange(Method)
+rownames(dfETUncert) <- NULL
+
+ETUnc_caption <- paste("Confidence intervals describing uncertainty"
+                        ,"about exposure time distribution parameters"
+                        , sep = "\n")
+knitr::kable(dfETUncert, escape=FALSE, format=report_format, digits = 2
+             , col.names=colnames(dfETUncert), caption = ETUnc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE) %>%
+    kableExtra::collapse_rows(columns=1, valign="top") %>%
+    kableExtra::footnote(paste0("n=",nsamps*0.5))
+
+fitdistrplus::CIcdfplot(boot_ET, "probability", datapch = 1
+                        , datacol = "black", do.points = FALSE
+                        , main = "Empirical and theoretical CDF with CI"
+                        , xlab = "ET (h/d)", ylab="Probability")
+
+# Keep nonparametric bootstrap results as describing uncertainty
+# Retained fit_ET_tnorm (Var) and boot_ET (U)
+
+```
+
+```{r ETunc_tri, eval=FALSE,include=FALSE,echo=FALSE}
+
+# Obtain SE about mean and SD, use for triangular distributions
+df_fit_ET_parm <- data.frame(Parameter="Mean"
+                             , Estimate=signif(fit_ET_tnorm$estimate[1]
+                                           , digits=3)
+                             , Std.Err=signif(fit_ET_tnorm$sd[1]
+                                               , digits=3))
+df_fit_ET_parm <- rbind(df_fit_ET_parm, data.frame(Parameter="StdDev"
+                             , Estimate=signif(fit_ET_tnorm$estimate[2]
+                                            , digits=3)
+                             , Std.Err=signif(fit_ET_tnorm$sd[2]
+                                               , digits=3)))
+rownames(df_fit_ET_parm) <- NULL
+gof_ET_fitSE <- "Standard error of estimated parameters for exposure time"
+
+print(knitr::kable(df_fit_ET_parm, escape=FALSE, format="markdown"
+             , col.names=colnames(df_fit_ET_parm)
+             , caption = gof_ET_fitSE) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE))
+
+rm(dfETUncert, df_ETvar, ETUnc_caption, gof_ET_fitSE, df_fit_ET_parm
+   , fit_ET_tnorm)
+
+```
+
+### Exposure Duration _DO NOT INCLUDE; NOT DONE_
+
+Uncertainty in exposure duration arises from the survey methodology, and in particular, the fact that the public use data incorporate diclosure avoidance ajdustments. Additionally, survey data are only reliably available for the year in which the resident moved into the residence. This information is less precise than knowing the number of days living in the residence, for example. Moreover, the data are measured from when the resident moved in to the date of the survey, which we use to approximate exposure duration. 
+
+Since no simple theoretical distribution fits the observed data, parametric methods are not suitable for estimating uncertainty about the central tendency or right tail. *Standard bootstrapping methods can be used to identify a 95% confidence interval about the variability distribution.*
+
+*NOT DONE* This requires coding the bootstrap and then coding the MCA inner and outer loops to incorporate the uncertainty about the empirical distribution. The mc2d package does not provide for uncertainty when an empirical distribution is specified. There may be ways to jury-rig it (I have a few thoughts on that), but it's not obvious that it will work or be less effort than simply writing the multiple loops.
+
+```{r ED_Uncertainty, eval=FALSE, include=FALSE}
+
+# https://stackoverflow.com/questions/21843745/confidence-interval-for-mu-in-a-log-normal-distributions-in-r
+n <- nrow(df_EDsampHist)
+alpha <- 0.05
+t_critical_value <- qt(1-alpha/2, n-1) # quantile frdfAirom Student's t dist
+ED_CIstudentst <- ggplot2::mean_se(df_EDsampHist$NumYears, t_critical_value)
+
+dfEDUncert <- data.frame("Parameter" = "meanlog"
+                          , "Method" = "Student's t"
+                          , "Median" = ED_CIstudentst$y
+                          , "LCL2.5" = ED_CIstudentst$ymin
+                          , "UCL97.5" = ED_CIstudentst$ymax)
+rownames(dfEDUncert) <- NULL
+
+EDUnc_caption <- paste("Confidence intervals describing uncertainty"
+                        ,"about exposure duration distribution parameters"
+                        , sep = "\n")
+knitr::kable(dfEDUncert, escape=FALSE, format=report_format, digits = 3
+             , col.names=colnames(dfEDUncert), caption = EDUnc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE) %>%
+    kableExtra::collapse_rows(columns=1, valign="top")
+
+rm(EDUnc_caption, dfEDUncert, n, alpha, t_critical_value, ED_CIstudentst
+   , df_EDsampHist, df_ED_EProb)
+
+```
+
+### Averaging Time _DO NOT INCLUDE; NOT DONE_
+
+_NOT DONE_. Whatever I do for the Exposure Duration must also be done for Averaging time, as they are both empirical distributions. 
+
+```{r AT_Uncertainty, eval=FALSE, include=FALSE}
+
+# https://stackoverflow.com/questions/21843745/confidence-interval-for-mu-in-a-log-normal-distributions-in-r
+n <- nrow(df_ATsample)
+alpha <- 0.05
+t_critical_value <- qt(1-alpha/2, n-1) # quantile frdfAirom Student's t dist
+AT_CIstudentst <- ggplot2::mean_se(df_ATsample$AgeAtDeath, t_critical_value)
+
+dfATUncert <- data.frame("Parameter" = "meanlog"
+                          , "Method" = "Student's t"
+                          , "Median" = AT_CIstudentst$y
+                          , "LCL2.5" = AT_CIstudentst$ymin
+                          , "UCL97.5" = AT_CIstudentst$ymax)
+rownames(dfATUncert) <- NULL
+
+ATUnc_caption <- paste("Confidence intervals describing uncertainty"
+                        ,"about averaging time distribution parameters"
+                        , sep = "\n")
+knitr::kable(dfATUncert, escape=FALSE, format=report_format, digits = 3
+             , col.names=colnames(dfATUncert), caption = ATUnc_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE) %>%
+    kableExtra::collapse_rows(columns=1, valign="top")
+
+rm(ATUnc_caption, dfATUncert, n, alpha, t_critical_value, AT_CIstudentst
+   , df_ATsample, df_AT_EProb, df_AT_adult, df_ATvar)
+
+```
+
+# Probabilistic Risk Assessment
+
+Monte Carlo analysis (MC) is the most widely used probabilistic method in PRA. MCA uses computer simulation to combine multiple probability distributions in the above equations. These resulting probability distributions provide a more complete and transparent characterization of the risk variability and uncertainties that are not available when using the deterministic (point-estimate) approach.
+
+When using MC to conduct a PRA, inputs for each exposure parameter for determining the EC are random variables extracted from the probability distributions. The distribution may be described as a probability density function (PDF), either based on a parametric fit to a theoretical distribution, or an empirical density function based on the sample data. The PDF describes the range of each parameter’s value and indicates the likelihood or probability of each value occurring within the range for the exposed population. The distribution can also be described as a cumulative distribution function (CDF) and shows the percentiles for the parameter’s value.
+
+The MC process considers the equations for EC and Risk to be a function of each variable in the equation. The process entails random selection of a value for each variable from its PDF to calculate EC and risk for each iteration. Running several iterations essentially equates to evaluating the exposure concentrations and risks for a population of hypothetical individuals . Commonly, a minimum of 10,000 iterations may be run. This is equivalent to determining ECs and risks for a randomly sampled population consisting of 10,000 hypothetical individuals.
+
+The standard method for random sampling (sometimes called brute force) does not take into account the previously generated sample points, resulting in a near-random sample of parameter values. In contrast, Latin hypercube sampling (LHS) is a statistical method that generates a set of random numbers that represent the real variability in the data set. In addition, no extra sample data are required for additional dimensions, and since the samples in multiple dimensions are obtained at the same time, computation time is reduced. As a standard practice for MC2D analyses, LHS should be used.
+
+Each iteration of the MC should represent a plausible combination of input values which may require using bounded or truncated probability distributions. For example, the averaging time (AT) for carcinogens is defined as a lifetime. For deterministic risk calculations, this value is typically a constant of 70 years (USEPA, 1989). For probabilistic risk calculations, the AT can be based on a lifetime PDF and span a wide range of years. However, when running an iteration, the exposure duration (ED) logically cannot exceed the lifetime. Conditions must be set within the process to ensure against this when parameters are randomly selected from the distribution.
+
+Finally, the number of iterations in an MC simulation should be sufficient to obtain numerical stability in the CDF output. Risk management decisions may be based on the 50th and 95th percentiles of the CDF of risk. When ultimately displaying the exposure concentration and risk, the CDF provides a clear illustration of the percentiles corresponding to a particular risk level. If the MC process results in variability for the decision-making percentiles when run at 5,000 iterations for multiple simulations, then the MCA process should be run with more iterations. This range of variability (e.g., 1 percent) is defined by risk managers. If 5,000 iterations in a simulation does not achieve numerical stability, then the analyst must consider using more iterations (e.g. 10,000 iterations) for the simulation until numerical stability is achieved (USEPA, 2009).
+
+Overall, the PRA assesses variability and uncertainty in the exposure assessment and risk characterization. Variability refers to the heterogeneity that occurs within a population. Factors leading to variability may include chemical concentrations in air and differences in exposure duration. Uncertainty refers to a lack of definitive information. This may stem from a lack of information or insufficient sample size to determine a PDF for a given parameter, such as exposure frequency. This may also stem from modeling to determine a toxicity value or modeling to calculate an exposure concentration. For this study, we used the "mc2d" package in R (Pouillot and Delignette-Muller 2010) to perform both the one-dimensional (MC1D) and the two-dimensional versions (MC2D).
+
+## Parameters of the PRA
+
+First, the analyst must assign each model parameter according to its category for use in the simulation. These categories are constants, variable parameters, uncertain parameters, or variable and uncertain parameters. A MC1D analysis uses distribution data for variability in parameters. It may also include variants for parameters known to be uncertain, but having only point estimates to represent the uncertainty (e.g., mean, median, and UCL values). Defining a model parameter described by scalar variants allows the analyst to perform one simulation that includes all variants. In contrast, a MC2D analysis incorporates the distributional representation of uncertainty for parameters for which there is greater knowledge about the uncertainty. 
+
+When initially evaluating the risk, it may be unknown which parameters contribute most significantly to the risk. The results of the MCA provide insight into the strengths and weaknesses of the input information. Ultimately, it may lead to insight on the effect of management options on risk estimates.
+
+While many of the parameters for this PRA are both variable and uncertain parameters, not all are. Moreover, the degree to which the variability and uncertainty can be described varies. Final model parameters are described below:
+
+* CA ($\mu$g/m^3^)
+    + Variability ~*LN(-1.716, 1.455)*
+    + Uncertainty meanlog (LCL -1.866; Median -1.717; UCL -1.563)
+    + Uncertainty sdlog (LCL 1.449; Median 1.346; UCL 1.565)
+* ET (min/d)
+    + Variability ~*TruncNorm(1084/60, 311/60, 4, 24)*
+    + Uncertainty mean (LCL 17.97; Median 18.13; UCL 18.33)
+    + Uncertainty sd (LCL 5.09; Median 5.22; UCL 5.37)
+* EF (d/y)
+    + Variability ~*Unif(234, 350)*
+* ED (y)
+    + Variability ~*Truncated Empirical (7, Averaging Time)* 
+    + Uncertainty
+* AT (y)
+    + Variability ~*Truncated Empirical (18, 85)*
+    + Uncertainty
+* IUR ($\mu$g/m^3^)^-1^
+    + Central tendency 0.00113 (median; mean is 0.0014)
+    + UCL95 0.00336
+    + Uncertainty ~*Norm(2.06, 2.43)*
+* Conversion Factor (CF1)
+    + Constant 365 d/y
+* Conversion Factor (CF2)
+    + Constant 24 h/d
+
+Incorporating the conversion factors required for dimensional equivalence, the Exposure Concentration and Risk equations become 
+
+$EC_{c} = \frac{\left(CA\times ET\times EF\times ED \right)}{\left(AT_{c}\times CF1\times CF2 \right)}$
+
+where:
+
+* EC = Exposure concentration as a time-weighted average ($\mu$g/m^3^)  
+* CA = Contaminant concentration in air ($\mu$g/m^3^)  
+* ET = Exposure time (h/d)  
+* EF = Exposure frequency (d/y)  
+* ED = Exposure duration (y)  
+* AT = Averaging time (lifetime in years x 365 d/y x 24 h/d)  
+
+and
+
+$Risk = EC\times IUR$
+
+where:
+
+* EC = Exposure concentration as a time-weighted average ($\mu$g/m^3^)  
+* IUR = Inhalation unit risk ($\mu$g/m^3^)^-1^  
+
+## One-Dimensional Monte Carlo Analysis
+
+The MC1D analysis uses the variability distributions described above for the parameters CA, ET, EF, ED, and AT. IUR is an uncertain parameter, but its uncertainty can be represented as scalar variants in a single MC1D model to obtain results for both the median and 95th percentile scalar values.  Combined, these simulations represent a varied population evaluated at two different levels of unit risk. 
+
+```{r resdir, echo=FALSE, include=FALSE}
+
+# Create results dir, if it doesn't exist
+resultsdir <- file.path(getwd(),"Results")
+ifelse(!dir.exists(file.path(resultsdir))==TRUE
+       , dir.create(file.path(resultsdir))
+       , FALSE)
+
+library(mc2d)
+
+```
+
+### Build the MC1D Model
+
+```{r mc1d_def_run}
+
+# Get data on runtime of the model only
+starttime <- Sys.time()
+niterv <- ndvar(nsamps*5)
+seed <- 123
+
+# Define constants
+CF1_d_y <- 365
+CF2_h_d <- 24
+
+# Define constants that represent different cases
+IUR50 <- 0.00113
+IUR95 <- 0.00336
+IURunc <- mcdata(c(IUR50, IUR95), type="0", nvariates = 2)
+
+# Define Variables with parametric distributions
+CAvar <- mcstoc(rlnorm, type="V", meanlog=-1.716, sdlog=1.457, nsv=niterv
+                , seed=seed, lhs=TRUE)
+ETvar <- mcstoc(rtnorm, type="V", mean=1084/60, sd=311/60, a=4, b=24
+                , nsv=niterv, seed=seed, lhs=TRUE)
+EFvar <- mcstoc(runif, type="V", min=234, max=350, nsv=niterv, seed=seed)
+
+# Defint variables with empirical distributions
+ATvar <- mcstoc(rempiricalC, type="V", min=18, max=85
+                , values=df_AT_EProb_adult$AgeAtDeath
+                , prob=df_AT_EProb_adult$EProb, nsv=niterv
+                , seed = seed, lhs=TRUE)
+
+EDvar <- mcstoc(rempiricalC, type="V", min=7, max=85
+                , values=df_ED_temp$NumYears, prob = df_ED_temp$EProb
+                , nsv=niterv, seed=seed, rtrunc=TRUE, linf=7, lsup=ATvar
+                , lhs=TRUE)
+
+ECvar <- (CAvar * ETvar * EFvar * EDvar)/(ATvar*CF1_d_y*CF2_h_d)
+
+Risk <- ECvar * IURunc
+
+Risk1d <- mc(Risk, IURunc, ECvar, CAvar, ETvar, EFvar, EDvar, ATvar)
+
+endtime <- Sys.time()
+runTime <- difftime(endtime, starttime, "secs")
+# cat(paste0("Runtime = ", round(runTime,4), " seconds"))
+
+```
+
+### MC1D Model Evaluation
+
+The model was evaluated for `r format(niterv,digits=3, big.mark=",")` iterations, requiring `r round(runTime,4)` seconds to complete the full simulation. The estimates of mean and median converged after less than 2,000 iterations, with the upper and lower 95% confidence interval requiring slightly more iterations than the central tendency, as would be expected. Latin hypercube sampling was employed for the parameters CA, ET, ED and AT.
+
+Table XX presents summary data for the MC1D analysis. Each row corresponds with either a result variant (Risk~50~ and Risk~95~) or a parameter. Each column represents a specific statistic or quantile. Histograms and CDF curves are also shown, with median and 95^th^ percentile lines shown for reference. Risk graphs also include the risk equivalent to 1 excess cancer per million.
+
+The first two lines of the table present the final risk values, one for each variant (median IUR and 95^th^ percentile IUR). The two columns most frequently cited are the ones associated with the median (50%) and the UCL (97.5%) in the table. The median value of Risk~50~ (calculated using the median IUR) is equivalent to the risk incurred by a typical (median) individual and equals `r format(quantile(Risk1d$Risk[,,1], probs = 0.50),digits=3, scientific=TRUE)` or `r format(quantile(Risk1d$Risk[,,1], probs = 0.50)*1000000, digits=3, big.mark=",")` per million. The upper level of risk incurred by an individual at the extreme end of exposure is `r format(quantile(Risk1d$Risk[,,1], probs = 0.975)*1000000, digits=3, big.mark=",")` per million  (97.5^th^ percentile). The more common value (95^th^ percentile) is `r format(quantile(Risk1d$Risk[,,1], probs = 0.95)*1000000, digits=3, big.mark=",")` per million. The percentage of the population reasonably likely to experience a risk greater than or equal to 1 per million is `r 100-round((ecdf(Risk1d$Risk[,,1])(1e-6))*100,0)`.
+
+Similarly, for the higher IUR value (IUR~95~), the median risk is `r format(quantile(Risk1d$Risk[,,2], probs = 0.50)*1000000, digits=3, big.mark=",")` per million. The upper level of risk incurred by an individual at the extreme end of exposure is `r format(quantile(Risk1d$Risk[,,2], probs = 0.975)*1000000, digits=3, big.mark=",")` per million  (97.5^th^ percentile). The more common value (95^th^ percentile) is `r format(quantile(Risk1d$Risk[,,2], probs = 0.95)*1000000, digits=3, big.mark=",")` per million. The percentage of the population reasonably likely to experience a risk greater than or equal to 1 per million is `r 100-round((ecdf(Risk1d$Risk[,,2])(1e-6))*100,0)`.
+
+```{r mc1d_eval, echo=FALSE}
+
+# Pull apart the summary list to build table of results
+Risk1d_summary <- summary(Risk1d)
+df1dSummary <- as.data.frame(rbind(unlist(Risk1d_summary$Risk[1])
+                     , unlist(Risk1d_summary$Risk[2])))
+
+for (e in 3:length(Risk1d_summary)) {
+    df1dSummary <- rbind(df1dSummary, unlist(Risk1d_summary[e]))
+}
+colnames(df1dSummary) <- c("mean", "sd", "Min", "2.5%", "25%", "50%"
+                           , "75%", "97.5%", "Max", "nsv", "NAs")
+df1dSummary <- cbind(data.frame("Parameter" = c("Risk50", "Risk95"
+                    , names(Risk1d_summary[3:8]))),df1dSummary)
+
+# Create table of descriptive statistics for each element of the MC model
+mc1d_caption <- paste0("One-dimensional Monte Carlo Analysis "
+                       , "summary of risk and input parameters")
+endcol <- ncol(df1dSummary)-2
+knitr::kable(df1dSummary[, 1:endcol], escape=FALSE
+             , format=report_format
+             , format.args=list(scientific=TRUE)
+             , col.names=colnames(df1dSummary)[1:endcol]
+             , caption = mc1d_caption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+# Create dataframe of parameters and risk results for graphics
+dfMC1d_var <- data.frame(cbind("CAvar"=CAvar, "ETvar"=ETvar, "EFvar"=EFvar
+                           , "EDvar"=EDvar, "ATvar"=ATvar))
+# Confirm all ED<=AT
+minDiffEDATvar <- min(dfMC1d_var$ATvar-dfMC1d_var$EDvar)
+# cat(paste0("Minimum difference between ED and AT is "
+#            , round(minDiffEDATvar, 2)))
+
+# Add both risk variants
+dfMC1dRiskVals <- data.frame(cbind("Risk50"=Risk1d$Risk[,,1])
+                             , "Risk95"=Risk1d$Risk[,,2])
+dfMC1d_var <- cbind(dfMC1dRiskVals, dfMC1d_var)
+
+# Get names for graphics
+rnames <- c("Risk50", "Risk95", names(Risk1d_summary[3:8]))
+
+# Cleanup unnecessary objects
+rm(dfMC1dRiskVals, minDiffEDATvar, mc1d_caption, df1dSummary)
+
+```
+
+```{r mc1d_graphics, echo=FALSE}
+
+# Generate plots
+EClabel <- expression(paste("Exposure concentration, ",mu,"g/",m^3))
+CAlabel <- expression(paste("EtO concentration, ",mu,"g/",m^3))
+labels <- c("Risk using 50th percentile IUR"
+                             , "Risk using 95th percentile IUR"
+                             , EClabel
+                             , CAlabel
+                             , "Exposure time, h/d"
+                             , "Exposure frequency, d/y"
+                             , "Exposure duration, y"
+                             , "Averaging time, y")
+df_xlims <- data.frame("Risk50"=c(0, 1E-3), "Risk95"=c(0, 1E-2), "ECvar"=c(0.2)
+                       , "CAvar"=c(0, 10), "ETvar"=c(0, 24), "EFvar"=c(0, 365)
+                       , "EDvar"=c(0, 85), "ATvar"=c(0, 85))
+
+figfnls <- vector()
+for (n in 1:length(rnames)) {
+
+    param <- rnames[n]
+    xlabel <- labels[n]
+    xmin <- df_xlims[1, param]
+    xmax <- df_xlims[2, param]
+    figfn <- file.path(resultsdir,paste0(param,"_1D.png"))
+    
+    print(paste0(param,"; ", xlabel))
+    
+    if (param=="ECvar") {next}
+    
+    # Prepare subset of data for plots
+    df2plot <- data.frame("Parameter"=dfMC1d_var[,param])
+    
+    # Generate Histogram
+    # If risk, generate vertical line at 1e-6
+    Param50 <- signif(median(df2plot$Parameter), digits=3)
+    Param95 <- signif(quantile(df2plot$Parameter, probs = 0.95), digits=3)
+    histTitle <- paste0("Histogram of ", param)
+    cdfTitle <- paste0("Cumulative Distribution Function of ", param)
+    subtitle <- paste0("n=",format(niterv, big.mark = ","))
+    Risk_max_iur95 <- 9.9e-3
+    Risk_95ucl_iur95 <- 1.9e-3
+
+    if (param=="Risk50") {
+        
+        captionRisk <- paste("Red line represents risk level = 1E-06"
+            , paste0("Blue line represents median risk level ("
+            , Param50, ")")
+            , paste0("Green line represents 95th percentile risk level ("
+            , Param95,")"), sep="\n")
+
+        phist <- ggplot2::ggplot(df2plot, ggplot2::aes(Parameter)) +
+            ggplot2::geom_histogram(bins=50, color="black", fill="white") +
+            ggplot2::geom_vline(xintercept=1e-06, color="red") +
+            ggplot2::geom_vline(xintercept=Param50, color="blue") +
+            ggplot2::geom_vline(xintercept=Param95, color="green", size=0.5) +
+            ggplot2::xlim(xmin, xmax) +
+            ggplot2::theme_bw() +
+            ggplot2::labs(title=histTitle, subtitle=subtitle
+                    , caption=captionRisk, x=xlabel, y="Frequency") +
+            ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+                    , plot.subtitle=ggplot2::element_text(hjust=0.5, size=8)
+                    , axis.text = ggplot2::element_text(size=8)
+                    , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+                    , legend.position = "none")
+        
+        pcdf <- ggplot2::ggplot(df2plot, ggplot2::aes(Parameter)) +
+            ggplot2::stat_ecdf() +
+            ggplot2::geom_vline(xintercept = 1e-06, color="red") +
+            ggplot2::geom_vline(xintercept = Param50, color="blue") +
+            ggplot2::geom_vline(xintercept = Param95, color = "green") +
+            ggplot2::xlim(xmin, xmax) +
+            ggplot2::theme_bw() +
+            ggplot2::labs(title=cdfTitle, subtitle=subtitle
+                    , caption=captionRisk, x=xlabel, y="Probability") +
+            ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+                    , plot.subtitle=ggplot2::element_text(hjust=0.5, size=8)
+                    , axis.text = ggplot2::element_text(size=8)
+                    , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+                    , legend.position = "none")
+        ggplot2::ggsave(figfn
+                    , gridExtra::grid.arrange(phist, pcdf, ncol=2, nrow=1)
+                    , width=7, height=5, units="in")
+        
+    } else if (param=="Risk95") {
+        
+        captionRisk <- paste("Red line represents risk level = 1E-06"
+            , paste0("Blue line represents median risk level ("
+            , Param50, ")")
+            , paste0("Green line represents 95th percentile risk level ("
+            , Param95,")")
+            , paste0("Orange line is the maximum point risk estimate ("
+                     , Risk_max_iur95, ")")
+            , paste0("Gray line is RME point risk estimate ("
+                     , Risk_95ucl_iur95, ")"), sep="\n")
+
+        phist <- ggplot2::ggplot(df2plot, ggplot2::aes(Parameter)) +
+            ggplot2::geom_histogram(bins=50, color="black", fill="white") +
+            ggplot2::geom_vline(xintercept = 1e-06, color="red") +
+            ggplot2::geom_vline(xintercept = Param50, color="blue") +
+            ggplot2::geom_vline(xintercept = Param95, color = "green") +
+            ggplot2::geom_vline(xintercept = Risk_max_iur95, color="orange"
+                                , size=1, linetype="dashed") +
+            ggplot2::geom_vline(xintercept = Risk_95ucl_iur95, color="gray"
+                                , size=1, linetype="dashed") +
+            ggplot2::xlim(xmin, xmax) +
+            ggplot2::theme_bw() +
+            ggplot2::labs(title=histTitle, subtitle=subtitle
+                    , caption=captionRisk, x=xlabel, y="Frequency") +
+            ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+                    , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                    , axis.text = ggplot2::element_text(size=8)
+                    , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+                    , legend.position = "none")
+        
+        pcdf <- ggplot2::ggplot(df2plot, ggplot2::aes(Parameter)) +
+            ggplot2::stat_ecdf() +
+            ggplot2::geom_vline(xintercept = 1e-06, color="red") +
+            ggplot2::geom_vline(xintercept = Param50, color="blue") +
+            ggplot2::geom_vline(xintercept = Param95, color="green",size=0.5) +
+            ggplot2::geom_vline(xintercept = Risk_max_iur95, color="orange"
+                                , size=1, linetype="dashed") +
+                ggplot2::geom_vline(xintercept = Risk_95ucl_iur95, color="gray"
+                                , size=1, linetype="dashed") +
+            ggplot2::xlim(xmin, xmax) +
+            ggplot2::theme_bw() +
+            ggplot2::labs(title=cdfTitle, subtitle=subtitle
+                    , caption=captionRisk, x=xlabel, y="Probability") +
+            ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+                    , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                    , axis.text = ggplot2::element_text(size=8)
+                    , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+                    , legend.position = "none")
+        ggplot2::ggsave(figfn
+                        , gridExtra::grid.arrange(phist, pcdf, ncol=2, nrow=1)
+                        , width=7, height=5, units="in")
+        
+    } else {
+        
+        captionElse <- paste(paste0("Blue line represents median parameter "
+                                    , "value (", Param50, ")")
+                     , paste0("Green line represents 95th percentile"
+                              , "parameter level (", Param95,")"), sep="\n")
+
+        phist <- ggplot2::ggplot(df2plot, ggplot2::aes(Parameter)) +
+            ggplot2::geom_histogram(bins=50, color="black", fill="white") +
+            ggplot2::geom_vline(xintercept = Param50, color="blue") +
+            ggplot2::geom_vline(xintercept = Param95, color = "green") +
+            ggplot2::xlim(xmin, xmax) +
+            ggplot2::theme_bw() +
+            ggplot2::labs(title=histTitle, subtitle=subtitle
+                          , caption=captionElse, x=xlabel, y="Frequency") +
+            ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+                    , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                    , axis.text = ggplot2::element_text(size=8)
+                    , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+                    , legend.position = "none")
+        
+        pcdf <- ggplot2::ggplot(df2plot, ggplot2::aes(Parameter)) +
+            ggplot2::stat_ecdf() +
+            ggplot2::geom_vline(xintercept = Param50, color="blue") +
+            ggplot2::geom_vline(xintercept = Param95, color = "green") +
+            ggplot2::xlim(xmin, xmax) +
+            ggplot2::theme_bw() +
+            ggplot2::labs(title=cdfTitle, subtitle=subtitle
+                          , caption=captionElse, x=xlabel, y="Probability") +
+            ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+                    , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                    , axis.text = ggplot2::element_text(size=10)
+                    , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
+                    , legend.position = "none")
+        ggplot2::ggsave(figfn
+                        , gridExtra::grid.arrange(phist, pcdf, ncol=2, nrow=1)
+                        , width=7, height=5, units="in")
+        
+    }
+    
+    figfnls[n] <- figfn
+
+}
+
+figfnls <- figfnls[!is.na(figfnls)]
+
+knitr::include_graphics(path = figfnls)
+
+```
+
+```{r cleanup_mc1d, echo=FALSE, include=FALSE}
+
+rm(df2plot, dfETUncert, dfMC1d_var, pcdf, phist, Risk1d, Risk1d_summary, fit_CAlnorm, fit_ET_tnorm, df_ATsample, df_EDsampHist, captionElse, captionRisk, cdfTitle, df_AT_adult, df_ATvar, df_EFvar, df_ETvar, e, endcol, endtime, ETUnc_caption, histTitle, IUR50, IUR95, n, param, Param50, Param95, rnames, runTime, seed, starttime, subtitle, xlabel, xmax, xmin)
+
+rm(ATvar, CAvar, ECvar, EDvar, EFvar, ETvar, IURunc, Risk)
+
+```
+
+
+## Two-Dimensional Monte Carlo Analysis
+
+A two-dimensional MC analysis (MC2D) provides additional information by virtue of including uncertainty in the modeled parameters. Variability, which represents the inherent diversity of a sample from a population, is not readily diminished. Uncertainty, on the other hand, represents lack of knowledge about the measurements or applied models (e.g., distribution fit to the data), and therefore can be minimized by acquiring more information. MC2D considers variability in one dimension and uncertainty in the other.
+
+### Build MC2D Model
+
+For this study, we modeled uncertainty in the EtO concentration in air and the exposure time during which an exposed adult is in their residence. This modeled uncertainty describes the uncertainty about the distribution, which in each case is defined by specific parameters. In the MC2D analysis we incorporate uncertainty as the uncertainty in the parameters that define the variability distribution. For example, a normal distribution is defined by its mean and standard deviation. 
+
+X ~ Normal($\mu$, $\sigma$)
+
+The bootstrapped uncertainty provides a distribution describing the uncertainty in the mean and another describing the uncertainty in the standard deviation. In the MC2D, we then define the normal distribution using the uncertainty about the mean and standard deviation:
+
+X ~ Normal($\mu_{unc}$, $\sigma_{unc}$)
+
+For each parameter, this results in a matrix of variability (rows) by uncertainty (columns). 
+
+```{r mc2d_def_run}
+
+# Get data on runtime of the model only
+starttime <- Sys.time()
+niterv <- ndvar(nsamps*2.5)
+niteru <- ndunc(nsamps*0.25)
+seed <- 123
+
+# Define constants
+CF1_d_y <- 365
+CF2_h_d <- 24
+CF3_ppm_ug_m3 <- 1802
+
+# Define parameters with only variability (parametric distributions)
+EFvar <- mcstoc(runif, type="V", min=234, max=350, nsv=niterv, seed=seed)
+
+# Define parameters with only variability (empirical distributions)
+ATvar <- mcstoc(rempiricalC, type="V", min=18, max=85
+                , values=df_AT_EProb_adult$AgeAtDeath
+                , prob=df_AT_EProb_adult$EProb, nsv=niterv
+                , seed = seed, lhs=TRUE)
+
+EDvar <- mcstoc(rempiricalC, type="V", min=7, max=85
+                , values=df_ED_temp$NumYears, prob = df_ED_temp$EProb
+                , nsv=niterv, seed=seed, rtrunc=TRUE, linf=7, lsup=ATvar
+                , lhs=TRUE)
+
+# Define parameters with both variability and uncertainty (parametric)
+CAmeanlog <- mcdata(boot_CA$estim$meanlog, type="U")
+CA_sdlog <- mcdata(boot_CA$estim$sdlog, type = "U")
+CAvu <- mcstoc(rlnorm, type="VU", meanlog=CAmeanlog, sdlog=CA_sdlog
+               , nsv=niterv, nsu=niteru, seed=seed, lhs=TRUE)
+ET_mean <- mcdata(boot_ET$estim$mean, type="U")
+ET_sd <- mcdata(boot_ET$estim$sd, type="U")
+ETvu <- mcstoc(rtnorm, type="VU", mean=ET_mean, sd=ET_sd, a=4, b=24
+                , nsv=niterv, nsu=niteru, seed=seed, lhs=TRUE)
+
+# Define parameters with only uncertainty (parametric)
+IURunc <- mcstoc(rnorm, type="U", mean=2.06/CF3_ppm_ug_m3
+                 , sd=2.43/CF3_ppm_ug_m3, nsu=niteru, seed=seed
+                 , lhs=TRUE)
+
+# Define EC
+ECvu <- (CAvu * ETvu * EFvar * EDvar)/(ATvar*CF1_d_y*CF2_h_d)
+
+# Define Risk
+Risk <- ECvu * IURunc
+
+# Run model
+Risk2d <- mc(Risk, IURunc, ECvu, CAvu, ETvu, EFvar, EDvar, ATvar)
+Risk2d_Riskonly <- mc(Risk)
+
+endtime <- Sys.time()
+runTime <- difftime(endtime, starttime, "secs")
+# cat(paste0("Runtime = ", round(runTime,4), " seconds"))
+# converg(Risk2d$Risk, margin = "var")
+# converg(Risk2d$Risk, margin = "unc")
+
+```
+
+###MC2D Model Evaluation
+
+The model was evaluated for `r format(niterv, digits=3, big.mark=",")` iterations in the variability dimension and `r format(niteru, digits=3, big.mark=",")` in the uncertainty dimension, requiring `r round(runTime,4)` seconds to complete the full simulation. The estimates of risk variability converged after approximately 3,000 iterations, and the uncertainty about the mean, median, and upper and lower confidence limits (2.5% and 97.5% quantiles) converged within 1,000 iterations. Latin hypercube sampling was employed for the parameters CA, ET, ED, AT, and IUR.
+
+```{r mc2d_tables, echo=FALSE}
+
+# Pull apart the summary list to build table of results
+Risk2d_summary <- summary(Risk2d)
+
+# Risk
+df_Risk_vu <- as.data.frame(unlist(Risk2d_summary$Risk))
+df_Risk_vu$Uncertainty <- row.names(df_Risk_vu)
+rownames(df_Risk_vu) <- NULL
+df_Risk_vu <- df_Risk_vu[,c(ncol(df_Risk_vu),1:ncol(df_Risk_vu)-1)]
+
+# EtO Concentration
+df_CA_vu <- as.data.frame(unlist(Risk2d_summary$CAvu))
+df_CA_vu$Uncertainty <- row.names(df_CA_vu)
+rownames(df_CA_vu) <- NULL
+df_CA_vu <- df_CA_vu[,c(ncol(df_CA_vu),1:ncol(df_CA_vu)-1)]
+
+# Exposure time
+df_ET_vu <- as.data.frame(unlist(Risk2d_summary$ETvu))
+df_ET_vu$Uncertainty <- row.names(df_ET_vu)
+rownames(df_ET_vu) <- NULL
+df_ET_vu <- df_ET_vu[,c(ncol(df_ET_vu),1:ncol(df_ET_vu)-1)]
+
+# Variability only
+df_EFvar <- as.data.frame(unlist(Risk2d_summary$EFvar))
+df_EDvar <- as.data.frame(unlist(Risk2d_summary$EDvar))
+df_ATvar <- as.data.frame(unlist(Risk2d_summary$ATvar))
+dfVarOnly <- rbind(df_EFvar, df_EDvar, df_ATvar)
+dfVarOnly$Parameter <- c("EFvar", "EDvar", "ATvar")
+dfVarOnly <- dfVarOnly[,c(ncol(dfVarOnly),1:ncol(dfVarOnly)-1)]
+rownames(dfVarOnly) <- NULL
+rm(df_EFvar, df_EDvar, df_ATvar)
+
+# Uncertainty only
+df_IURunc <- as.data.frame(unlist(Risk2d_summary$IURunc))
+df_IURunc <- as.data.frame(t(df_IURunc))
+
+```
+
+The first table presents the final risk values, with variability described by the columns and uncertainty described by the rows. For example, 50% of the hypothetical population (50% column) will have a mean risk (the mean row) of `r format(df_Risk_vu[2, "50%"], scientific=TRUE, digits=4)` with a 95% LCL (the 2.5 percentile row) of `r format(df_Risk_vu[3, "50%"], scientific=TRUE, digits=4)` and a 95% UCL (the 97.5 percentile row) of `r format(df_Risk_vu[4, "50%"], scientific=TRUE, digits=4)`. 
+
+Two additional tables (XX and YY) provide similar information for the two variable and uncertain input parameters, EtO air concentration and exposure time.
+
+```{r mc2d_Tables, echo=FALSE}
+
+# Create table of descriptive statistics for Risk
+mc2d_RiskCaption <- paste0("Two-dimensional Monte Carlo Analysis "
+                       , "summary of risk variability and uncertainty")
+endcol <- ncol(df_Risk_vu)-2
+knitr::kable(df_Risk_vu[, 1:endcol], escape=FALSE
+             , format=report_format
+             , format.args=list(scientific=TRUE, digits=4)
+             , col.names=colnames(df_Risk_vu)[1:endcol]
+             , caption = mc2d_RiskCaption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+# Create table of descriptive statistics for EtO air concentration
+mc2d_CACaption <- paste0("Two-dimensional Monte Carlo Analysis "
+                       , "summary of EtO concentration variability "
+                       , "and uncertainty")
+endcol <- ncol(df_CA_vu)-2
+knitr::kable(df_CA_vu[, 1:endcol], escape=FALSE
+             , format=report_format, digits=3
+             , format.args=list(scientific=TRUE)
+             , col.names=colnames(df_CA_vu)[1:endcol]
+             , caption = mc2d_CACaption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+# Create table of descriptive statistics for exposure time
+mc2d_ETCaption <- paste0("Two-dimensional Monte Carlo Analysis "
+                       , "summary of exposure time variability "
+                       , "and uncertainty")
+endcol <- ncol(df_ET_vu)-2
+knitr::kable(df_ET_vu[, 1:endcol], escape=FALSE
+             , format=report_format, digits=3
+             , format.args=list(scientific=TRUE)
+             , col.names=colnames(df_ET_vu)[1:endcol]
+             , caption = mc2d_ETCaption) %>%
+  kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+               , font_size = 10, full_width = FALSE
+               , position = "left", fixed_thead = TRUE)
+
+# rm(dfMC1dRiskVals, minDiffEDATvar, mc1d_caption, df1dSummary)
+
+```
+
+The graph for risk changes with the MC2D results. In this case, the CDF still describes risk variability, but the curve represents a specific parameter of the uncertainty about the risk variability. In the graph below, the black line represents the probability against the median of uncertainty. The gray lines bracketing the black curve in the graph on the left represent the 95% confidence interval (2.5% and 97.5% quantiles) and the ones on the right represent the interquartile range (25% and 75% quantiles). These measures (2.5%, 25%, median or 50%, 75%, and 97.5%) represent uncertainty for each value of risk variability on the x-axis. 
+
+```{r mc2d_graphics, echo=FALSE}
+
+# Use mc2d plot.mc function to get appropriate data for graphing
+pCDF_mc2dRisk <- plot.mc(Risk2d, draw=FALSE, paint=FALSE)
+dfRiskECDFdata <- data.frame(unmc(pCDF_mc2dRisk$Risk))
+dfRiskECDFdata <- t(dfRiskECDFdata)
+rownames(dfRiskECDFdata) <- NULL
+dfRiskECDFdata <- data.frame(dfRiskECDFdata)
+colnames(dfRiskECDFdata) <- c("median", "mean", "LCL2.5", "LCL25", "UCL75"
+                              , "UCL97.5")
+# Plot Risk CDF 
+# QUESTION: Should I be plotting the mean or median risk curve? MEDIAN
+Risk_max_iur95 <- 9.9e-3    # Deterministic value using max CA & IUR95
+Risk_95ucl_iur95 <- 1.9e-3  # Deterministic using 95UCL of mean CA & IUR 95
+
+
+# Median value of median risk
+cdfTitleMed95CI <- paste("CDF of Risk Variability", "showing Median and 95% CI"
+                        , sep="\n")
+cdfTitleMedIQR <- paste("CDF of Risk Variability", "showing Median and IQR"
+                        , sep="\n")
+ParamMedian <- format(as.numeric(df_Risk_vu[1,"50%"]),digits=2
+                      ,scientific=TRUE)
+ParamMedianLCL <- format(as.numeric(df_Risk_vu[3,"50%"]),digits=2
+                         ,scientific=TRUE)
+ParamMedianUCL <- format(as.numeric(df_Risk_vu[4,"50%"]),digits=2
+                         ,scientific=TRUE)
+captionRiskMedian <- paste(paste0("Blue line represents median risk level = "
+                            ,ParamMedian," (",ParamMedianLCL," to "
+                            ,ParamMedianUCL,")")
+                , paste0("Orange line is the maximum point risk estimate ("
+                         , Risk_max_iur95, ")")
+                , paste0("Purple line is RME point risk estimate ("
+                         , Risk_95ucl_iur95, ")"), sep="\n")
+captionRiskMedIQR <- paste(paste0("Blue line represents median risk level = "
+                            ,ParamMedian," (",ParamMedianLCL," to "
+                            ,ParamMedianUCL,")"), "", "", sep = "\n")
+
+subtitle <- paste0("nvar=",format(niterv, big.mark = ","),"; nunc="
+                   , format(niteru, big.mark = ","))
+
+pcdf_risk_med95CI <- ggplot2::ggplot(dfRiskECDFdata, ggplot2::aes(x=median)) +
+    ggplot2::stat_ecdf(color="black", size=1) +
+    ggplot2::stat_ecdf(ggplot2::aes(x=LCL2.5), color="gray50", size=0.5) +
+    ggplot2::stat_ecdf(ggplot2::aes(x=UCL97.5), color="gray50", size=0.5) + 
+    ggplot2::geom_vline(xintercept = as.numeric(ParamMedian), color="blue") +
+    ggplot2::geom_segment(data=dfRiskECDFdata
+                       , ggplot2::aes(x=ecdf(LCL2.5)(0.5)
+                                      , xend=ecdf(UCL97.5)(0.5)
+                                      , y=0.5, yend=0.5), color="blue") +
+    ggplot2::geom_vline(xintercept = Risk_max_iur95, color="orange"
+                        , size=1, linetype="dashed") +
+    ggplot2::geom_vline(xintercept = Risk_95ucl_iur95, color="purple"
+                        , size=1, linetype="dashed") +
+    ggplot2::xlim(c(-0.00001,0.01)) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title=cdfTitleMed95CI, subtitle=subtitle
+            , caption=captionRiskMedian, x="Median Risk (MC2D results)"
+            , y="Probability") +
+    ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+            , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+            , axis.text = ggplot2::element_text(size=8)
+            , axis.title = ggplot2::element_text(size=8)
+            , plot.caption = ggplot2::element_text(hjust=0.5, size = 6)
+            , legend.position = "none")
+
+fnMedRisk2d <- file.path(resultsdir,"RiskMedian95CI_2D.png")
+ggplot2::ggsave(fnMedRisk2d, pcdf_risk_med95CI, width=7, height=5, units="in")
+
+# Plot IQR
+pcdf_risk_medIQR <- ggplot2::ggplot(dfRiskECDFdata, ggplot2::aes(x=median)) +
+    ggplot2::stat_ecdf(color="black", size=1) +
+    ggplot2::stat_ecdf(ggplot2::aes(x=LCL25), color="gray50", size=0.5) +
+    ggplot2::stat_ecdf(ggplot2::aes(x=UCL75), color="gray50", size=0.5) + 
+    ggplot2::geom_vline(xintercept = as.numeric(ParamMedian), color="blue") +
+    ggplot2::geom_segment(data=dfRiskECDFdata
+                       , ggplot2::aes(x=ecdf(LCL25)(0.5), xend=ecdf(UCL75)(0.5)
+                       , y=0.5, yend=0.5), color="blue") +
+    ggplot2::geom_vline(xintercept = Risk_max_iur95, color="orange"
+                        , size=1, linetype="dashed") +
+    ggplot2::geom_vline(xintercept = Risk_95ucl_iur95, color="purple"
+                        , size=1, linetype="dashed") +
+    ggplot2::xlim(c(-0.00001,0.01)) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title=cdfTitleMedIQR, subtitle=subtitle
+            , caption=captionRiskMedian, x="Median Risk (MC2D results)"
+            , y="Probability") +
+    ggplot2::theme(plot.title=ggplot2::element_text(hjust=0.5, size=10)
+            , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+            , axis.text = ggplot2::element_text(size=8)
+            , axis.title = ggplot2::element_text(size=8)
+            , plot.caption = ggplot2::element_text(hjust=0.5, size = 6)
+            , legend.position = "none")
+
+fnMedRisk2d <- file.path(resultsdir,"RiskMedianIQR_2D.png")
+ggplot2::ggsave(fnMedRisk2d, pcdf_risk_medIQR, width=7, height=5, units="in")
+
+figfn <- file.path(resultsdir,"RiskMedian_BothCDFs.png")
+ggplot2::ggsave(figfn
+                , gridExtra::grid.arrange(pcdf_risk_med95CI, pcdf_risk_medIQR
+                                          , ncol=2, nrow=1)
+                , width=7, height=5, units="in")
+
+knitr::include_graphics(path = figfn)
+
+```
+
+Each point on the variability curve can be represented by a distribution of uncertainty about that point, as shown in the histogram below. This histogram represents the uncertainty about the median of risk variability, essentially a slice horizontally across the curves in the CDFs at a probability equal to 0.5.
+
+```{r mc2d_MedRiskUncHist, echo=FALSE}
+
+ParamMedian <- as.numeric(df_Risk_vu[1,"50%"])
+ParamMedianLCL <- as.numeric(df_Risk_vu[3,"50%"])
+ParamMedianUCL <- as.numeric(df_Risk_vu[4,"50%"])
+RiskMedUnc <- data.frame(unmc(mcapply(Risk2d_Riskonly, "var", median)))
+riskhistcapt <- paste(paste0("Red lines represent median and "
+                             , "95% confidence interval")
+                      , paste0("n=", format(niteru, big.mark = ","))
+                      , sep = "\n")
+phistMedRiskUnc <- ggplot2::ggplot(RiskMedUnc
+                                   , ggplot2::aes(x=Risk)) +
+    ggplot2::geom_histogram(binwidth = 0.000005, color="black", fill="blue") +
+    ggplot2::geom_vline(xintercept=ParamMedian, color="red", size=1) +
+    ggplot2::geom_vline(xintercept=as.numeric(ParamMedianLCL), color="red"
+                        , linetype="dashed", size = 0.5) +
+    ggplot2::geom_vline(xintercept=ParamMedianUCL, color="red"
+                        , linetype="dashed", size = 0.5) +
+    ggplot2::xlim(-1e-4, 2e-4) + ggplot2::ylim(0, 200) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Histogram of uncertainty"
+                  , subtitle="Median of risk variability"
+                  , caption = riskhistcapt
+                  , x = "Risk uncertainty about median of risk variability"
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=10)
+                   , plot.caption = ggplot2::element_text(hjust=1, size = 8)
+                   , legend.position = "none")
+
+fighist <- file.path(resultsdir, "MedRiskVar_UncHist.png")
+ggplot2::ggsave(fighist, phistMedRiskUnc, width=7, height=5, units="in")
+
+knitr::include_graphics(path = fighist)
+
+
+```
+
+# Conclusions and Recommendations
+
+_INSERT THERESA'S TEXT HERE_
+
+***
+
+# Sources
+
+Arias, Elizabeth and Xu, Jiaquan. 2019. Table 1. Life table for the total population: United States, 2017. In United States life tables, 2017. 
+National Vital Statistics Reports; vol 68 no 7. Hyattsville, MD:
+National Center for Health Statistics. Data retrieved on 01 July 2020 from https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/NVSR/68_07/Table01.xlsx
+
+Arias, Elizabeth and Xu, Jiaquan. 2019. United States life tables, 2017.
+National Vital Statistics Reports; vol 68 no 7. Hyattsville, MD:
+National Center for Health Statistics. Available from https://www.cdc.gov/nchs/data/nvsr/nvsr68/nvsr68_07-508.pdf
+
+Delignette-Muller, Marie Laure and Dutang, Christophe (2015). fitdistrplus: An R Package for Fitting Distributions. Journal of Statistical Software, 64(4), 1-34. Available at http://www.jstatsoft.org/v64/i04/.
+
+Delignette-Muller, Marie Laure and Dutang, Christophe (2020). fitdistrplus: Frequently Asked Questions. Available at https://cran.r-project.org/web/packages/fitdistrplus/vignettes/FAQ.html#questions-regarding-goodness-of-fit-tests-and-statistics.
+
+Millard SP (2013). EnvStats: An R Package for Environmental Statistics. Springer, New York. ISBN 978-1-4614-8455-4, http://www.springer.com.
+
+Pouillot, R. and Delignette-Muller, M.-L. (2010). Evaluating variability and uncertainty in microbial quantitative risk assessment using two R packages. International Journal of Food Microbiology. 142(3):330-40
+
+U.S. Census Bureau. 2007. 2007 American Housing Survey Data, Microdata Public Use Files, Retrieved on 01 July 2020 from https://www.census.gov/programs-surveys/ahs/data/2007/ahs-2007-public-use-file--puf-.html
+
+U.S. Census Bureau. 2008. American Housing Survey for the United States: 2007. Washington, DC: U.S. Government Printing Office. Available for download at http://www.huduser.org/portal/datasets/ahs/ahsdata07.html
+
+U.S. Census Bureau. 2015. 2015 American Housing Survey Data, Microdata Public Use Files, Retrieved on 01 July 2020 from https://www.census.gov/programs-surveys/ahs/data/2015/ahs-2015-public-use-file--puf-/ahs-2015-national-public-use-file--puf-.html
+
+U.S. Census Bureau. 2017. 2017 American Housing Survey Data. Microdata Public Use Files. Retrieved on 01 July 2020 from https://www.census.gov/programs-surveys/ahs/data/2017/ahs-2017-public-use-file--puf-/ahs-2017-national-public-use-file--puf-.html. 
+
+US Census Bureau. 2019. Getting Started with the Public Use File: 2015 and Beyond. Retrieved on 01 July 2020 from https://www.census.gov/content/dam/Census/programs-surveys/ahs/tech-documentation/2015/Getting%20Started%20with%20the%20AHS%20PUF.pdf. 
+
+U.S. Census Bureau. 2020. AHS Table Creator. https://www.census.gov/programs-surveys/ahs/data/interactive/ahstablecreator.html?s_areas=00000&s_year=2017&s_tablename=TABLE1&s_bygroup1=1&s_bygroup2=1&s_filtergroup1=1&s_filtergroup2=1.  
+
+U.S. Environmental Protection Agency. 1992. Supplemental Guidance to RAGS: Calculating the Concentration Term. OSWER Directive9285.7-08I. Available from https://rais.ornl.gov/documents/UCLsEPASupGuidance.pdf. 
+
+U.S. Environmental Protection Agency. 1997. The Lognormal Distribution in Environmental Applications. Office of Research and Development and Office of Solid Waste and Emergency Response. Washington DC. EPA/600/R-97/006. Available from https://www.epa.gov/nscep. 
+
+U.S. Environmental Protection Agency. 2001. Risk Assessment Guidance for Superfund (RAGS): Volume III - Part A, Process for Conducting Probabilistic Risk Assessment. EPA/540/R-02/002, OSWER Directive No. 9285.7-45, PB2002 963302. Available from www.epa.gov/superfund/RAGS3A/index.htm. 
+
+U.S. Environmental Protection Agency. 2002. Calculating Upper Confidence Limits for Exposure Point Concentrations at Hazardous Waste Sites. OSWER Directive No. 9285.6-10. Available from https://www.epa.gov/nscep. 
+
+Wickham, H. 2016. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag: New York. 
