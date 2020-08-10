@@ -1,0 +1,710 @@
+---
+title: "Integrated Probabilistic Assessment for Ethylene Oxide"
+author: "Ann Roseberry Lincoln, Chris Kirman, Ron Kotun, Theresa Lopez"
+date: "06 May 2020"
+output:
+  html_document:
+    df_print: paged
+    number_sections: TRUE
+  word_document: default
+  pdf_document: default
+R version: 3.5.1
+version: 1
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(results='asis', echo=TRUE, warning=FALSE)
+# Debugging
+boo.DEBUG <- TRUE
+
+if (boo.DEBUG==TRUE) {
+    report_format="html"
+}
+#
+# Define pipe
+`%>%` <- dplyr::`%>%`
+#
+
+# Global variables
+numsamps = 10000
+xlabel_pod <- expression(paste("Ethylene oxide, point of departure ("
+                               , mu, "g/", m^3, ")"))
+xlabel_ur <- expression(paste("Ethylene oxide, unit risk, per ",mu,"g/",m^{3}))
+
+```
+
+# Integrated Probabilistic Treatment of Toxicity Data (Chris Kirman)
+
+## Probabilistic Treatment of EO Unit Risk Based on Animal Data
+
+### Screening-Level Characterization of Uncertainty of Animal-Based Potency Estimates
+
+#### Single tumor site: Lung tumors in female mice
+
+For the first example, a screening-level distribution is developed for ethylene oxide (EO) based on lung tumors in female mice. From the three datapoints for the Point of Departure (POD; min=LEC10, max=UEC10, best=EC10), a triangular distribution can be generated. These three values represent the 5th percentile, 95th percentile, and 50th percentile.
+
+```{r pod.fm.lung}
+
+pod.fm.lung <- EnvStats::rtri(numsamps, 9100, 34000, 14800)
+pod.fm.lung <- as.data.frame(pod.fm.lung)
+colnames(pod.fm.lung)[1] <- "EC.fm.lung"
+ggplot2::ggplot(pod.fm.lung, ggplot2::aes(EC.fm.lung)) + 
+    ggplot2::geom_histogram(binwidth=500, color="black", fill="red"
+                            , alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Point of departure, female mice, lung tumors"
+                  , caption = "10,000 draws"
+                  , x = xlabel_pod
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+```
+
+Unit risk can be calculated by dividing the benchmark response rate by the POD value:
+
+```{r ur.fm.lung}
+
+BMR <- 0.1
+ur.fm.lung <- BMR / pod.fm.lung$EC.fm.lung
+ur.fm.lung <- as.data.frame(ur.fm.lung)
+colnames(ur.fm.lung)[1] <- "ur.fm.lung"
+ggplot2::ggplot(ur.fm.lung, ggplot2::aes(ur.fm.lung)) + 
+    ggplot2::geom_histogram(binwidth=0.00000015,color="black",fill="blue"
+                            ,alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Unit risk, female mice, lung tumors"
+                  , caption = "10,000 draws"
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+```
+
+To be more inclusive of the tails of the distribution, the 1st, 50th, and 99th percentiles can be used, as shown below.
+
+
+```{r fm.lung.alt}
+
+pod.fm.lung.alt <- EnvStats::rtri(numsamps, 7300, 37000, 14800)
+pod.fm.lung.alt <- as.data.frame(pod.fm.lung.alt)
+colnames(pod.fm.lung.alt)[1] <- "EC.fm.lung.alt"
+ggplot2::ggplot(pod.fm.lung.alt, ggplot2::aes(EC.fm.lung.alt)) + 
+    ggplot2::geom_histogram(binwidth=500, color="black", fill="red", alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean (Alternate)"
+                  , subtitle = "Point of departure, female mice, lung tumors"
+                  , caption = "10,000 draws"
+                  , x = xlabel_pod
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+ur.fm.lung.alt <- BMR / pod.fm.lung.alt$EC.fm.lung.alt
+ur.fm.lung.alt <- as.data.frame(ur.fm.lung.alt)
+colnames(ur.fm.lung.alt)[1] <- "ur.fm.lung.alt"
+ggplot2::ggplot(ur.fm.lung.alt, ggplot2::aes(ur.fm.lung.alt)) + 
+    ggplot2::geom_histogram(binwidth=0.0000002,color="black",fill="blue",alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean (Alternate)"
+                  , subtitle = "Unit risk, female mice, lung tumors"
+                  , caption = "10,000 draws"
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+    
+```
+
+#### Combining Unit Risks across tumor sites: All tumors in female mice
+
+These steps are repeated for data representing lymphoma, uterine, and mammary tumors in female mice. The unit risk for combined tumor types can be estimated by assuming the risks are independent and additive. Note that this approach assumes the tumors are mutually exclusive and does not account for the joint probability of different tumor types occurring in the same animal.
+
+```{r ur.fm.comb1}
+
+# Lung tumors
+pod.fm.lung <- EnvStats::rtri(numsamps, 9100, 34000, 14800)
+pod.fm.lung <- as.data.frame(pod.fm.lung)
+colnames(pod.fm.lung)[1] <- "EC"
+ur.fm.lung <- BMR / pod.fm.lung$EC
+
+# Lymphomas
+pod.fm.lymph <- EnvStats::rtri(numsamps, 13900, 48500, 21100)
+pod.fm.lymph <- as.data.frame(pod.fm.lymph)
+colnames(pod.fm.lymph)[1] <- "EC"
+ur.fm.lymph <- BMR / pod.fm.lymph$EC
+
+# Uterine tumors
+pod.fm.uter <- EnvStats::rtri(numsamps, 23100, 75400, 32800)
+pod.fm.uter <- as.data.frame(pod.fm.uter)
+colnames(pod.fm.uter)[1] <- "EC"
+ur.fm.uter <- BMR / pod.fm.uter$EC
+
+# Mammary tumors
+pod.fm.mamm <- EnvStats::rtri (numsamps, 5350, 22300, 9690)
+pod.fm.mamm <- as.data.frame(pod.fm.mamm)
+colnames(pod.fm.mamm)[1] <- "EC"
+ur.fm.mamm <- BMR / pod.fm.mamm$EC
+
+# All tumors combined
+ur.fm.comb <- ur.fm.lung + ur.fm.lymph + ur.fm.uter + ur.fm.mamm
+ur.fm.comb <- as.data.frame(ur.fm.comb)
+colnames(ur.fm.comb)[1] <- "UnitRisk"
+
+pdf <- ggplot2::ggplot(ur.fm.comb, ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.000001, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = paste("Unit risk, female mice"
+                        , "lung, lymph, uterine, and mammary tumors"
+                        , sep = "\n")
+                  , caption = "10,000 draws"
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+cdf <- ggplot2::ggplot(ur.fm.comb, ggplot2::aes(UnitRisk)) +
+    ggplot2::stat_ecdf(geom = "point", color = "blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="ECDF of uncertainty around the mean"
+                  , subtitle = paste("Unit risk, female mice"
+                        , "lung, lymph, uterine, and mammary tumors"
+                        , sep = "\n")
+                  , caption = "10,000 draws"
+                  , x = xlabel_ur
+                  , y = "Probability") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(pdf, cdf, nrow=1, ncol=2)
+
+meanCombIUR <- mean(ur.fm.comb$UnitRisk)
+medCombIUR <- median(ur.fm.comb$UnitRisk)
+
+```
+
+#### Combining Unit Risks across data sets: Species and sex
+
+To include data from multiple data sets, repeat the steps above to develop corresponding Unit Risk values for each of the remaining data sets. In this case, male mice, female rats, and male rats.
+
+**Note:** Based on a conversation with Chris Kirman (2020-05-20), the ur.all.rodents should be represented by a random sampling of 4 distributions, each with a 25% probability of being sampled. Unless the group feels strongly that we should demonstrate this, he recommends not developing the remaining distributions (male mice, female rats, and male rats). 
+
+```{r ur.allrodents, include=FALSE}
+
+# ur.all.rodents
+
+
+```
+### Refined Characterization of Uncertainty for Animal-based Potency Estimates
+
+Use BMDS output to generate an ECDF of the error around the POD based on data provided by the BMDS program. Chris's explanation of this is clear. I have just provided code and graphics for the document.
+
+```{r bdms_example}
+wd <- getwd()
+fn <- file.path(wd,"Data","BenchmarkDoseModel_m3_ug"
+                ,"PODS.csv")
+df_pods2 <- read.csv(fn, header=TRUE, na.strings=c("","NA")
+                       , stringsAsFactors=FALSE)
+df_urs2 <- BMR/df_pods2
+ur.fm.lung2 <- sample(df_urs2$FM.Lung, size=numsamps, replace=TRUE)
+df_ur.fm.lung2 <- data.frame("FM.Lung" = ur.fm.lung2)
+
+pdf2 <- ggplot2::ggplot(df_ur.fm.lung2, ggplot2::aes(FM.Lung)) + 
+    ggplot2::geom_histogram(binwidth=0.00025, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Unit risk, female mice, lung tumors"
+                  , caption = "10,000 draws from BMDS output report"
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+cdf2 <- ggplot2::ggplot(df_ur.fm.lung2, ggplot2::aes(FM.Lung)) +
+    ggplot2::stat_ecdf(geom = "point", color = "blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="ECDF of uncertainty around the mean"
+                  , subtitle = "Unit risk, female mice, lung tumors"
+                  , caption = "10,000 draws from BMDS output report"
+                  , x = xlabel_ur
+                  , y = "Probability") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(pdf2, cdf2, nrow=1, ncol=2)
+
+```
+
+### Refined Characterization of Uncertainty and Variation
+
+Distribution derived by combining unit risks across tumor sites within a single species (p. 20 of July working draft).
+
+```{r ur.comb.BMDSdata}
+
+ur.fm.lymph2 <- sample(df_urs2$FM.Lymph, size=numsamps, replace=TRUE)
+ur.fm.uter2 <- sample(df_urs2$FM.Uterine, size=numsamps, replace=TRUE)
+ur.fm.mam2 <- sample(df_urs2$FM.Mammary, size=numsamps, replace=TRUE)
+ur.fm.comb2 <- ur.fm.lung2 + ur.fm.lymph2 + ur.fm.uter2 + ur.fm.mam2
+ur.fm.comb2 <- data.frame("UnitRisk" = ur.fm.comb2)
+
+pdf3 <- ggplot2::ggplot(ur.fm.comb2, ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.0005, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Unit risk, female mice, all tumors"
+                  , caption = "10,000 draws from BMDS output report"
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+cdf3 <- ggplot2::ggplot(ur.fm.comb2, ggplot2::aes(UnitRisk)) +
+    ggplot2::stat_ecdf(geom = "point", color = "blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="ECDF of uncertainty around the mean"
+                  , subtitle = "Unit risk, female mice, all tumors"
+                  , caption = "10,000 draws from BMDS output report"
+                  , x = xlabel_ur
+                  , y = "Probability") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(pdf3, cdf3, nrow=1, ncol=2)
+
+meanBMDS <- mean(ur.fm.comb2$UnitRisk, na.rm=TRUE)
+medBMDS <- median(ur.fm.comb2$UnitRisk, na.rm = TRUE)
+
+```
+
+```{r cleanup_animal, echo=FALSE}
+
+rm(BMR, cdf, cdf2, cdf3, df_pods2, df_urs2, df_ur.fm.lung2, pdf, pdf2, pdf3
+   , pod.fm.lung, pod.fm.lung.alt, pod.fm.lymph, pod.fm.mamm, pod.fm.uter
+   , ur.fm.comb, ur.fm.comb2, ur.fm.lung.alt, ur.fm.lung, ur.fm.lung2
+   , ur.fm.lymph, ur.fm.lymph2, ur.fm.mamm, ur.fm.mamm2, ur.fm.uter
+   , ur.fm.uter2)
+
+```
+
+### Additional Refinements
+
+There's a good bit of text here, but no code or graphics.
+
+## Characterization of Epidemiology-based Risk Values
+
+### Screening-level characterization of uncertainty
+
+#### Single cancer type: Lymphoid cancer in workers
+
+Use a triangular distribution with min=LEC01, max=UEC01, best=EC01 to create POD distribution and multiply by a conversion factor (from ppm to $\mu$g/m^3^) of 1,802. UR, if used directly (i.e., not generated from the POD), will be divided by this conversion factor.
+
+```{r ur.epi.lymph}
+
+CF_ppm_ugm3 <- 1802
+# Generate EC ppm distribution (original--matches image in text currently)
+pod.epi.lymph <- as.data.frame(EnvStats::rtri(numsamps, 0.00271, 0.147
+                                               , 0.0107))
+colnames(pod.epi.lymph)[1] <- "EC_ppm"
+
+# Generate EC ug/m3 distribution by converting distribution (use this one)
+pod.epi.lymph.ugm3 <- as.data.frame(EnvStats::rtri(numsamps, 0.00271, 0.147,
+                                               0.0107)*CF_ppm_ugm3)
+colnames(pod.epi.lymph.ugm3)[1] <- "EC_ug_m3"
+
+BMRepi <- 0.01
+ur.epi.lymph.perugm3 <- dplyr::mutate(pod.epi.lymph.ugm3
+                              , UnitRisk = eval(BMRepi) / EC_ug_m3)
+
+pdf_ur.epi.lymph <- ggplot2::ggplot(ur.epi.lymph.perugm3
+                                , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.00002, color="black", fill="blue"
+                            , alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Lymphoid cancers in workers"
+                  , caption = "10,000 draws"
+                  , x=xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+```
+
+#### Combining Unit Risks across cancer types
+
+This first example cites personal communication with Dr. Valdez-Flores. (Figure 9 in the June text--ur.epi.lymph1)
+
+```{r ur.epi.comb}
+
+# Breast cancers
+pod.epi.breast.ugm3 <- as.data.frame(EnvStats::rtri(numsamps, 0.0101, 0.284
+                                               , 0.0206)*CF_ppm_ugm3)
+colnames(pod.epi.breast.ugm3)[1] <- "EC"
+ur.epi.breast.perugm3 <- dplyr::mutate(pod.epi.breast.ugm3
+                                       , UnitRisk = eval(BMRepi) / EC)
+pdf_ur.epi.breast <- ggplot2::ggplot(ur.epi.breast.perugm3
+                                , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.000006, color="black", fill="blue"
+                            , alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Breast cancer in workers"
+                  , caption = "10,000 draws"
+                  , x=xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+# Combined cancers
+ur.epi.comb.perugm3 <- as.data.frame(ur.epi.lymph.perugm3$UnitRisk + ur.epi.breast.perugm3$UnitRisk)
+colnames(ur.epi.comb.perugm3)[1] <- "UnitRisk"
+
+median.epi.comb <- quantile(ur.epi.comb.perugm3$UnitRisk, probs=0.50)
+ucl.epi.comb <- quantile(ur.epi.comb.perugm3$UnitRisk, probs=0.95)
+epi_caption <- paste0("10,000 draws: Median=", round(median.epi.comb,5)
+                   , "; 95th percentile=", round(ucl.epi.comb,5))
+
+pdf_ur.epi.comb <- ggplot2::ggplot(ur.epi.comb.perugm3
+                                   , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.00003, color="black", fill="blue"
+                            , alpha=0.5) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "All cancers in workers"
+                  , caption = epi_caption
+                  , x=xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+cdf_ur.epi.comb <- ggplot2::ggplot(ur.epi.comb.perugm3
+                                   , ggplot2::aes(UnitRisk)) +
+    ggplot2::stat_ecdf(geom = "point", color = "blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="ECDF of uncertainty around the mean"
+                  , subtitle = "All cancers in workers"
+                  , caption = epi_caption
+                  , x = xlabel_ur
+                  , y = "Probability") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(pdf_ur.epi.lymph, pdf_ur.epi.breast, pdf_ur.epi.comb
+                        , cdf_ur.epi.comb, nrow = 2, ncol = 2)
+
+```
+
+
+### Refined Characterization of Uncertainty
+
+#### Single cancer type: Lymphoid cancer in workers
+
+This section presents similar data, but normal distributions
+
+```{r ur.epi.lymph.adults}
+
+# Lymphoid cancers -- Line 1 Table 4-17 (EPA citation)
+set.seed(123)
+ur.epi.lymph.adults <- as.data.frame(rnorm(numsamps, 1.34, 2.38)/CF_ppm_ugm3)
+colnames(ur.epi.lymph.adults)[1] <- "UnitRisk"
+
+pdf_epi.lymph.adults <- ggplot2::ggplot(ur.epi.lymph.adults
+                                        , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.0001, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Lymphoid cancers in workers"
+                  , caption = "10,000 draws"
+                  , x=xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=10)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+# Breast cancers -- Line 2 Table 4-17 (EPA citation)
+set.seed(123)
+ur.epi.breast.adults <- as.data.frame(rnorm(numsamps
+                                            , 0.725, 0.459)/CF_ppm_ugm3)
+colnames(ur.epi.breast.adults)[1] <- "UnitRisk"
+
+pdf_epi.breast.adults <- ggplot2::ggplot(ur.epi.breast.adults
+                                        , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.00002, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Breast cancer in workers"
+                  , caption = "10,000 draws"
+                  , x=xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=10)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+```
+
+
+#### Combining unit risks across cancer types
+
+__DO NOT USE THIS FIRST FIGURE--IT WAS FOR DISCUSSION WITH CHRIS__
+
+```{r ur.epi.comb.adults, include=TRUE, echo=FALSE}
+
+# Comined cancers -- Original method (adding lines 1 and 2)
+ur.epi.comb.adults <- as.data.frame(ur.epi.lymph.adults + ur.epi.breast.adults)
+colnames(ur.epi.comb.adults)[1] <- "UnitRisk"
+
+meanIURsum <- mean(ur.epi.comb.adults$UnitRisk)
+sdIURsum <- sd(ur.epi.comb.adults$UnitRisk)
+medianIURsum <- quantile(ur.epi.comb.adults$UnitRisk, probs = 0.50)
+uclIURsum <- quantile(ur.epi.comb.adults$UnitRisk, probs = c(0.90, 0.95, 0.99))
+captionSum <- paste0("10,000 draws: Mean="
+                     , format(meanIURsum,digits=3,nsmall=0)
+                     , "Std. Dev.="
+                     , format(sdIURsum,digits=3,nsmall=0))
+
+pdf_epi.comb.adults.sum <- ggplot2::ggplot(ur.epi.comb.adults
+                                       , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.0001, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "All cancers in workers (lines 1 + 2)"
+                  , caption = captionSum
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+cdf_epi.comb.adults.sum <- ggplot2::ggplot(ur.epi.comb.adults
+                                       , ggplot2::aes(UnitRisk)) +
+    ggplot2::stat_ecdf(geom = "point", color = "blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="ECDF of uncertainty around the mean"
+                  , subtitle = "All cancers in workers (lines 1 + 2)"
+                  , caption = captionSum
+                  , x = xlabel_ur
+                  , y = "Probability") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(pdf_epi.lymph.adults, pdf_epi.breast.adults
+                        , pdf_epi.comb.adults.sum, cdf_epi.comb.adults.sum
+                        , nrow=2, ncol=2)
+
+summaryStringSum <- paste0("Mean="
+                     , format(meanIURsum,digits=3,nsmall=0)
+                     , "; Median="
+                     , format(medianIURsum,digits=3,nsmall=0)
+                     , "; Std. Dev.="
+                     , format(sdIURsum,digits=3,nsmall=0)
+                     , "; 95th %ile="
+                     , format(uclIURsum[2],digits=3,nsmall=0))
+
+```
+
+
+```{r ur.epi.comb.adults2}
+
+# Comined cancers -- Preferred method (use line 3 Table 4-17 USEPA citation)
+set.seed(123)
+ur.epi.comb.adultsFINAL <- as.data.frame(rnorm(numsamps, 2.06, 2.43)/CF_ppm_ugm3)
+colnames(ur.epi.comb.adultsFINAL)[1] <- "UnitRisk"
+
+meanIURfinal <- mean(ur.epi.comb.adultsFINAL$UnitRisk)
+sdIURfinal <- sd(ur.epi.comb.adultsFINAL$UnitRisk)
+medianIURfinal <- quantile(ur.epi.comb.adultsFINAL$UnitRisk, probs = 0.50)
+uclIURfinal <- quantile(ur.epi.comb.adultsFINAL$UnitRisk
+                      , probs = c(0.90, 0.95, 0.99))
+captionFINAL <- paste0("10,000 draws: Mean="
+                     , format(meanIURfinal,digits=3,nsmall=0)
+                     , "; Std. Dev.="
+                     , format(sdIURfinal,digits=3,nsmall=0))
+summaryString <- 
+
+pdf_epi.comb.adults <- ggplot2::ggplot(ur.epi.comb.adultsFINAL
+                                       , ggplot2::aes(UnitRisk)) + 
+    ggplot2::geom_histogram(binwidth=0.0001, color="black", fill="blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Lymphoid and breast cancers in workers"
+                  , caption = captionFINAL
+                  , x = xlabel_ur
+                  , y = "Count") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+cdf_epi.comb.adults <- ggplot2::ggplot(ur.epi.comb.adultsFINAL
+                                       , ggplot2::aes(UnitRisk)) +
+    ggplot2::stat_ecdf(geom = "point", color = "blue") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="ECDF of uncertainty around the mean"
+                  , subtitle = "Lymphoid and breast cancers in workers"
+                  , caption = captionFINAL
+                  , x = xlabel_ur
+                  , y = "Probability") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+
+gridExtra::grid.arrange(pdf_epi.lymph.adults, pdf_epi.breast.adults
+                        , pdf_epi.comb.adults, cdf_epi.comb.adults
+                        , nrow=2, ncol=2)
+
+summaryStringFINAL <- paste0("Mean="
+                     , format(meanIURfinal,digits=3,nsmall=0)
+                     , "; Median="
+                     , format(medianIURfinal,digits=3,nsmall=0)
+                     , "; Std. Dev.="
+                     , format(sdIURfinal,digits=3,nsmall=0)
+                     , "; 95th %ile="
+                     , format(uclIURfinal[2],digits=3,nsmall=0))
+
+```
+
+```{r ur.epi.adult.gof, include=FALSE}
+
+ur.final.descStats <- fitdistrplus::descdist(ur.epi.comb.adults$UnitRisk
+                                             , boot=numsamps)
+
+# Values of unit risk are too small for fitting. Multiply by 1000 for gof test.
+x <-ur.epi.comb.adults$UnitRisk*100
+ur.final.FitNorm <- fitdistrplus::fitdist(x,"norm","mle")
+
+par(mfrow=c(2,2))
+plot.legend <- "Normal (x100)"
+fitdistrplus::denscomp(ur.final.FitNorm, legendtext=plot.legend)
+fitdistrplus::qqcomp(ur.final.FitNorm, legendtext=plot.legend)
+fitdistrplus::cdfcomp(ur.final.FitNorm, legendtext=plot.legend)
+fitdistrplus::ppcomp(ur.final.FitNorm, legendtext=plot.legend)
+
+adjADstat <- function(x, n) { # per D'Agostino 1986 (includes critical values)
+    y = x^2 * (1 + (0.75/n) + (2.25/n^2))
+    return(y)
+}
+
+adPval <- function(x) { # Stephanie Glen. "Anderson-Darling Test & Statistic: Definition, Examples" From StatisticsHowTo.com: Elementary Statistics for the rest of us! https://www.statisticshowto.com/anderson-darling-test/ 
+    if (x >= 0.60) {
+        p <- exp(1.2937 - 5.709*x + 0.0186*(x^2))
+    } else if (x>=0.34) {
+        p <- exp(0.9177 - 4.279*x -1.38*(x^2))
+    } else if (x>=0.20) {
+        p <- 1 - exp(-8.318 + 42.796*x - 59.938*(x^2))
+    } else {
+        p <- 1 - exp(-13.436 + 101.14*x - 223.73*(x^2))
+    }
+}
+
+gof.ur.final.Norm <- fitdistrplus::gofstat(ur.final.FitNorm, fitnames="norm")
+df_gof <- data.frame(Distribution = "Normal"
+                     , AD_statistic = round(gof.ur.final.Norm$ad,3)
+                     , AD_adj = adjADstat(gof.ur.final.Norm$ad, length(x))
+                     , AD_result1 = gof.ur.final.Norm$adtest
+                     , AD_result2 = ifelse(adjADstat(gof.ur.final.Norm$ad
+                                                     , length(x))<=1.159
+                                    , "accepted (0.5% significance level)"
+                                    , ifelse(adjADstat(gof.ur.final.Norm$ad
+                                                       , length(x))<=1.035
+                                    , "accepted (1% significance level)"
+                                    , "rejected"))
+                     , AD_pval = adPval(gof.ur.final.Norm$ad)
+                     , KS_statistic = round(gof.ur.final.Norm$ks,3)
+                     , KS_result = gof.ur.final.Norm$kstest
+                     , AIC = round(gof.ur.final.Norm$aic,1)
+                     , BIC = round(gof.ur.final.Norm$bic,1))
+rownames(df_gof) <- NULL
+
+gof_caption <- "Goodness of fit results for Unit Risk"
+knitr::kable(df_gof, escape=FALSE, format=report_format
+             , col.names=colnames(df_gof), caption = gof_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = FALSE
+                              , position = "left", fixed_thead = TRUE)
+
+# Distribution parameters
+Parameters <- c("mean", "sd")
+Estimates <- c(format(ur.final.FitNorm$estimate[1]/100,digits=3,nsmall=0)
+               , format(ur.final.FitNorm$estimate[2]/100,digits=3,nsmall=0))
+Std.Err <- c(format(ur.final.FitNorm$sd[1]/100,digits=3,nsmall=0)
+             , format(ur.final.FitNorm$sd[2]/100,digits=3,nsmall=0))
+distUR <- data.frame(Parameters, Estimates, Std.Err, stringsAsFactors = FALSE)
+rownames(distUR) <- NULL
+
+distUR_caption <- paste("Distribution of Uncertainty Parameters for Unit Risk:"
+                        , " All cancers in adult workers", sep = "\n")
+knitr::kable(distUR, escape=FALSE, format=report_format, digits=3
+             , format.args = list(scientific=TRUE)
+             , table.attr = "style='width:40%;'"
+             , col.names=colnames(distUR), caption = distUR_caption) %>%
+    kableExtra::kable_styling(bootstrap_options = c("condensed","hover")
+                              , font_size = 10, full_width = TRUE
+                              , position = "left", fixed_thead = TRUE) %>%
+    kableExtra::footnote(general = "Best fit normal distribution")
+
+```
+
+The distribution representing uncertainty in the unit risk point estimate is this last distribution: uncertainty about the mean that is normally distributed with a mean of `r format(meanIURfinal, digits=3, nsmall=0)` and a standard deviation of `r format(sdIURfinal, digits=3, nsmall=0)`.
+
+***
+
+For Chris's information: comparing sum of distributions with provided totals
+
+Sum of lines 1 & 2 parameters: `r summaryStringSum`  
+Line 3 parameters: `r summaryStringFINAL`  
+Chris's estimates:  
+
+* Central tendency = 0.0011 ($\mu$g/m^3^)^-1^  
+* UCL = 0.0033 ($\mu$g/m^3^)^-1^
+
+
+***
