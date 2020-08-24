@@ -74,7 +74,7 @@ Varying each exposure factor's point estimate allows the analyst to determine wh
 
 Ethylene oxide is colorless, flammable gas that is heavier than air, easily dissolved in water, alcohol, and most organic solvents, and degrades in both air and water with a half-life ranging from hours to 2-3 weeks, depending on specific conditions. For purposes of illustration of PRA, a hypothetical ethylene oxide data set was derived from nitrogen oxide concentrations in the Los Angeles basin provided by the California Air Resources Board as described in Section X.X. The data are included in Attachment A. The data were collected over the period of one year, from multiple locations in the basin, thus presenting sufficient information to represent both the spatial and temporal variability in the data and to determine an annual average concentration.
 
-In point estimate risk assessments, the exposure point concentration term is usually calculated as the 95 percent upper confidence limit of the arithmetic mean (95% UCL) because of the uncertainty associated with estimating the population mean concentration at a site (USEPA, 1989). Smaller sample sizes typically result in greater uncertainty. Therefore, use of the 95% UCL to define the concentration term is more conservative toward public health by reducing the likelihood of underestimating the mean. Typically, USEPA’s ProUCL software has been used to determine the 95% UCL (USEPA, 2015). ProUCL computes statistics using parametric and nonparametric methods by considering a data set’s distribution, skewness, and sample size, and recommends a distribution type, its parameters, and the 95% UCL of the arithmetic mean for use in point estimate risk assessments.
+In point estimate risk assessments, the exposure point concentration term is usually calculated as the 95 percent upper confidence limit of the arithmetic mean (95% UCL) because of the uncertainty associated with estimating the population mean concentration at a site (USEPA, 1989). Smaller sample sizes typically result in greater uncertainty. Therefore, use of the 95% UCL to define the concentration term is more conservative toward public health by reducing the likelihood of underestimating the mean. Typically, USEPA's ProUCL software has been used to determine the 95% UCL (USEPA, 2015). ProUCL computes statistics using parametric and nonparametric methods by considering a data set's distribution, skewness, and sample size, and recommends a distribution type, its parameters, and the 95% UCL of the arithmetic mean for use in point estimate risk assessments.
 
 The air data (Attachment A) were incorporated into ProUCL 5.1.002. The ProUCL output (Attachment B) shows that the variability demonstrated by the air concentration data set is lognormally distributed. The 95% UCL of 0.641 $\mu$g/m^3^ recommended for point assessments is based on the Land H-statistic method. The mean of the logged data is -1.716; therefore, the median^a^ is 0.18 µg/m3 and the geometric mean^b^ is 0.52. The standard deviation of the logged data is 1.457; therefore, the geometric standard deviation^c^ is 2.0 µg/m3.
 
@@ -1776,13 +1776,13 @@ IUR95 <- 0.00336
 IURunc <- mcdata(c(IUR50, IUR95), type="0", nvariates = 2)
 
 # Define Variables with parametric distributions
-CAvar <- mcstoc(rlnorm, type="V", meanlog=-1.716, sdlog=1.457, nsv=niterv
+CAvar <- mcstoc(rlnorm, type="V", meanlog=-1.716, sdlog=1.455, nsv=niterv
                 , seed=seed, lhs=TRUE)
 ETvar <- mcstoc(rtnorm, type="V", mean=1084/60, sd=311/60, a=4, b=24
                 , nsv=niterv, seed=seed, lhs=TRUE)
 EFvar <- mcstoc(runif, type="V", min=234, max=350, nsv=niterv, seed=seed)
 
-# Defint variables with empirical distributions
+# Define variables with empirical distributions
 ATvar <- mcstoc(rempiricalC, type="V", min=18, max=85
                 , values=df_AT_EProb_adult$AgeAtDeath
                 , prob=df_AT_EProb_adult$EProb, nsv=niterv
