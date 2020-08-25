@@ -1,0 +1,2 @@
+"0","plot.legend <- ""Normal (x100)"""
+"0","fitdistrplus::denscomp(ur.final.FitNorm, legendtext=plot.legend)"

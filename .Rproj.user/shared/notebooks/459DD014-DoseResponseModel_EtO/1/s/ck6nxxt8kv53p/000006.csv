@@ -1,2 +1,0 @@
-"0","meanBMDS <- mean(ur.fm.comb2$UnitRisk, na.rm=TRUE)"
-"0","medBMDS <- median(ur.fm.comb2$UnitRisk, na.rm = TRUE)"

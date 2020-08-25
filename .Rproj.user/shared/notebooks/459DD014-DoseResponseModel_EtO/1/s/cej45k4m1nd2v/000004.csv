@@ -1,0 +1,4 @@
+"0","# Values of unit risk are too small for fitting. Multiply by 1000 for gof test."
+"0","x <-ur.epi.comb.adults$UnitRisk*100"
+"0","ur.final.FitNorm <- fitdistrplus::fitdist(x,""norm"",""mle"")"
+"0","par(mfrow=c(2,2))"

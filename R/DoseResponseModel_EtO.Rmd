@@ -31,6 +31,7 @@ numsamps = 10000
 xlabel_pod <- expression(paste("Ethylene oxide, point of departure ("
                                , mu, "g/", m^3, ")"))
 xlabel_ur <- expression(paste("Ethylene oxide, unit risk, per ",mu,"g/",m^{3}))
+outdir <- "C:/Users/ann.lincoln/Documents/ATSDRproject/Rcode/Results"
 
 ```
 
@@ -164,7 +165,7 @@ ur.fm.comb <- as.data.frame(ur.fm.comb)
 colnames(ur.fm.comb)[1] <- "UnitRisk"
 
 pdf <- ggplot2::ggplot(ur.fm.comb, ggplot2::aes(UnitRisk)) + 
-    ggplot2::geom_histogram(binwidth=0.000001, color="black", fill="blue") +
+    ggplot2::geom_density(ggplot2::aes(y=ggplot2::after_stat(count/max(count)))) +
     ggplot2::theme_bw() +
     ggplot2::labs(title="Distribution of uncertainty around the mean"
                   , subtitle = paste("Unit risk, female mice"
@@ -172,7 +173,7 @@ pdf <- ggplot2::ggplot(ur.fm.comb, ggplot2::aes(UnitRisk)) +
                         , sep = "\n")
                   , caption = "10,000 draws"
                   , x = xlabel_ur
-                  , y = "Count") +
+                  , y = "Density") +
     ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
                    , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
                    , axis.text = ggplot2::element_text(size=8)
@@ -220,7 +221,7 @@ Use BMDS output to generate an ECDF of the error around the POD based on data pr
 
 ```{r bdms_example}
 wd <- getwd()
-fn <- file.path(wd,"Data","BenchmarkDoseModel_m3_ug"
+fn <- file.path("..","Data","BenchmarkDoseModel_m3_ug"
                 ,"PODS.csv")
 df_pods2 <- read.csv(fn, header=TRUE, na.strings=c("","NA")
                        , stringsAsFactors=FALSE)
@@ -229,7 +230,7 @@ ur.fm.lung2 <- sample(df_urs2$FM.Lung, size=numsamps, replace=TRUE)
 df_ur.fm.lung2 <- data.frame("FM.Lung" = ur.fm.lung2)
 
 pdf2 <- ggplot2::ggplot(df_ur.fm.lung2, ggplot2::aes(FM.Lung)) + 
-    ggplot2::geom_histogram(binwidth=0.00025, color="black", fill="blue") +
+    ggplot2::geom_histogram(bins=100, color="black", fill="blue") +
     ggplot2::theme_bw() +
     ggplot2::labs(title="Distribution of uncertainty around the mean"
                   , subtitle = "Unit risk, female mice, lung tumors"
@@ -273,13 +274,13 @@ ur.fm.comb2 <- ur.fm.lung2 + ur.fm.lymph2 + ur.fm.uter2 + ur.fm.mam2
 ur.fm.comb2 <- data.frame("UnitRisk" = ur.fm.comb2)
 
 pdf3 <- ggplot2::ggplot(ur.fm.comb2, ggplot2::aes(UnitRisk)) + 
-    ggplot2::geom_histogram(binwidth=0.0005, color="black", fill="blue") +
+    ggplot2::geom_density(ggplot2::aes(y=ggplot2::after_stat(count/max(count)))) +
     ggplot2::theme_bw() +
     ggplot2::labs(title="Distribution of uncertainty around the mean"
                   , subtitle = "Unit risk, female mice, all tumors"
                   , caption = "10,000 draws from BMDS output report"
                   , x = xlabel_ur
-                  , y = "Count") +
+                  , y = "Density") +
     ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
                    , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
                    , axis.text = ggplot2::element_text(size=8)
@@ -304,6 +305,40 @@ gridExtra::grid.arrange(pdf3, cdf3, nrow=1, ncol=2)
 
 meanBMDS <- mean(ur.fm.comb2$UnitRisk, na.rm=TRUE)
 medBMDS <- median(ur.fm.comb2$UnitRisk, na.rm = TRUE)
+
+```
+####Compare Mouse Screening/Refined IURs
+
+```{r mouseCompScreenRefined}
+
+ur.fm.comb$Type <- "Screening-level"
+ur.fm.comb2$Type <- "Refined"
+ur.fm.comb2 <- ur.fm.comb2[!is.na(ur.fm.comb2$UnitRisk),]
+ur.fm.comb3 <- rbind(ur.fm.comb, ur.fm.comb2)
+
+pal4 <- viridis::viridis(4)
+
+pdf_mcomp <- ggplot2::ggplot(ur.fm.comb3
+                    , ggplot2::aes(x=UnitRisk
+                                   ,y=ggplot2::after_stat(count/max(count))
+                    , color=Type)) +
+    ggplot2::geom_density() + 
+    ggplot2::scale_color_manual(values=c(pal4[1], pal4[3])) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Unit risk, female mice, all tumors"
+                  , caption = "10,000 draws"
+                  , x = xlabel_ur
+                  , y = "Density") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=8))
+fn_mcomp <- file.path(outdir,"IUR_MouseScreenVRefined.png")
+ggplot2::ggsave(fn_mcomp, pdf_mcomp,height=4, width=5, units="in", dpi=300)
+
+knitr::include_graphics(path = fn_mcomp)
 
 ```
 
@@ -550,7 +585,6 @@ summaryStringSum <- paste0("Mean="
 
 ```
 
-
 ```{r ur.epi.comb.adults2}
 
 # Comined cancers -- Preferred method (use line 3 Table 4-17 USEPA citation)
@@ -567,7 +601,10 @@ captionFINAL <- paste0("10,000 draws: Mean="
                      , format(meanIURfinal,digits=3,nsmall=0)
                      , "; Std. Dev.="
                      , format(sdIURfinal,digits=3,nsmall=0))
-summaryString <- 
+captionFINAL2 <- paste0("10,000 draws: Median="
+                     , format(medianIURfinal,digits=3,nsmall=0)
+                     , "; 95th percentile="
+                     , format(uclIURfinal[2],digits=3,nsmall=0))
 
 pdf_epi.comb.adults <- ggplot2::ggplot(ur.epi.comb.adultsFINAL
                                        , ggplot2::aes(UnitRisk)) + 
@@ -609,6 +646,37 @@ summaryStringFINAL <- paste0("Mean="
                      , format(sdIURfinal,digits=3,nsmall=0)
                      , "; 95th %ile="
                      , format(uclIURfinal[2],digits=3,nsmall=0))
+
+```
+
+####Compare epidemiological screening and refined IURs
+```{r compEpiScreenVRefined}
+
+ur.epi.comb.perugm3$Type <- "Screening-level"
+ur.epi.comb.adultsFINAL$Type <- "Refined"
+ur.epi.comb <- rbind(ur.epi.comb.perugm3, ur.epi.comb.adultsFINAL)
+
+pdf_epicomp <- ggplot2::ggplot(ur.epi.comb
+                    , ggplot2::aes(x=UnitRisk
+                                   ,y=ggplot2::after_stat(count/max(count))
+                    , color=Type)) +
+    ggplot2::geom_density() + 
+    ggplot2::scale_color_manual(values=c(pal4[1], pal4[3])) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(title="Distribution of uncertainty around the mean"
+                  , subtitle = "Unit risk, adult workers, all tumors"
+                  , caption = paste(epi_caption,captionFINAL2, sep="\n")
+                  , x = xlabel_ur
+                  , y = "Density") +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust=0.5, size=10)
+                   , plot.subtitle = ggplot2::element_text(hjust=0.5, size=8)
+                   , axis.text = ggplot2::element_text(size=8)
+                   , axis.title = ggplot2::element_text(size=8)
+                   , plot.caption = ggplot2::element_text(size=6))
+fn_epicomp <- file.path(outdir,"IUR_EpiScreenVRefined.png")
+ggplot2::ggsave(fn_epicomp, pdf_epicomp, height=4, width=5, units="in", dpi=300)
+
+knitr::include_graphics(path = fn_epicomp)
 
 ```
 

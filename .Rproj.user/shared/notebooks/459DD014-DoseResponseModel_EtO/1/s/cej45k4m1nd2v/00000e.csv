@@ -1,0 +1,120 @@
+"0","adjADstat <- function(x, n) { # per D'Agostino 1986 (includes critical values)"
+"0","    y = x^2 * (1 + (0.75/n) + (2.25/n^2))"
+"0","    return(y)"
+"0","}"
+"0","adPval <- function(x) { # Stephanie Glen. ""Anderson-Darling Test & Statistic: Definition, Examples"" From StatisticsHowTo.com: Elementary Statistics for the rest of us! https://www.statisticshowto.com/anderson-darling-test/ "
+"0","    if (x >= 0.60) {"
+"0","        p <- exp(1.2937 - 5.709*x + 0.0186*(x^2))"
+"0","    } else if (x>=0.34) {"
+"0","        p <- exp(0.9177 - 4.279*x -1.38*(x^2))"
+"0","    } else if (x>=0.20) {"
+"0","        p <- 1 - exp(-8.318 + 42.796*x - 59.938*(x^2))"
+"0","    } else {"
+"0","        p <- 1 - exp(-13.436 + 101.14*x - 223.73*(x^2))"
+"0","    }"
+"0","}"
+"0","gof.ur.final.Norm <- fitdistrplus::gofstat(ur.final.FitNorm, fitnames=""norm"")"
+"0","df_gof <- data.frame(Distribution = ""Normal"""
+"0","                     , AD_statistic = round(gof.ur.final.Norm$ad,3)"
+"0","                     , AD_adj = adjADstat(gof.ur.final.Norm$ad, length(x))"
+"0","                     , AD_result1 = gof.ur.final.Norm$adtest"
+"0","                     , AD_result2 = ifelse(adjADstat(gof.ur.final.Norm$ad"
+"0","                                                     , length(x))<=1.159"
+"0","                                    , ""accepted (0.5% significance level)"""
+"0","                                    , ifelse(adjADstat(gof.ur.final.Norm$ad"
+"0","                                                       , length(x))<=1.035"
+"0","                                    , ""accepted (1% significance level)"""
+"0","                                    , ""rejected""))"
+"0","                     , AD_pval = adPval(gof.ur.final.Norm$ad)"
+"0","                     , KS_statistic = round(gof.ur.final.Norm$ks,3)"
+"0","                     , KS_result = gof.ur.final.Norm$kstest"
+"0","                     , AIC = round(gof.ur.final.Norm$aic,1)"
+"0","                     , BIC = round(gof.ur.final.Norm$bic,1))"
+"0","rownames(df_gof) <- NULL"
+"0","gof_caption <- ""Goodness of fit results for Unit Risk"""
+"0","knitr::kable(df_gof, escape=FALSE, format=report_format"
+"0","             , col.names=colnames(df_gof), caption = gof_caption) %>%"
+"0","    kableExtra::kable_styling(bootstrap_options = c(""condensed"",""hover"")"
+"0","                              , font_size = 10, full_width = FALSE"
+"0","                              , position = ""left"", fixed_thead = TRUE)"
+"1","<table class=""table table-condensed table-hover"" style=""font-size: 10px; width: auto !important; "">
+<caption style=""font-size: initial !important;"">Goodness of fit results for Unit Risk</caption>
+ <thead>
+  <tr>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> Distribution </th>
+   <th style=""text-align:right;position: sticky; top:0; background-color: #FFFFFF;""> AD_statistic </th>
+   <th style=""text-align:right;position: sticky; top:0; background-color: #FFFFFF;""> AD_adj </th>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> AD_result1 </th>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> AD_result2 </th>
+   <th style=""text-align:right;position: sticky; top:0; background-color: #FFFFFF;""> AD_pval </th>
+   <th style=""text-align:right;position: sticky; top:0; background-color: #FFFFFF;""> KS_statistic </th>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> KS_result </th>
+   <th style=""text-align:right;position: sticky; top:0; background-color: #FFFFFF;""> AIC </th>
+   <th style=""text-align:right;position: sticky; top:0; background-color: #FFFFFF;""> BIC </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style=""text-align:left;""> Normal </td>
+   <td style=""text-align:right;""> 0.189 </td>
+   <td style=""text-align:right;""> 0.0357748 </td>
+   <td style=""text-align:left;""> not computed </td>
+   <td style=""text-align:left;""> accepted (0.5% significance level) </td>
+   <td style=""text-align:right;""> 0.9007551 </td>
+   <td style=""text-align:right;""> 0.005 </td>
+   <td style=""text-align:left;""> not rejected </td>
+   <td style=""text-align:right;""> -8606.1 </td>
+   <td style=""text-align:right;""> -8591.7 </td>
+  </tr>
+</tbody>
+</table>"
+"1","
+"
+"0","# Distribution parameters"
+"0","Parameters <- c(""mean"", ""sd"")"
+"0","Estimates <- c(format(ur.final.FitNorm$estimate[1]/100,digits=3,nsmall=0)"
+"0","               , format(ur.final.FitNorm$estimate[2]/100,digits=3,nsmall=0))"
+"0","Std.Err <- c(format(ur.final.FitNorm$sd[1]/100,digits=3,nsmall=0)"
+"0","             , format(ur.final.FitNorm$sd[2]/100,digits=3,nsmall=0))"
+"0","distUR <- data.frame(Parameters, Estimates, Std.Err, stringsAsFactors = FALSE)"
+"0","rownames(distUR) <- NULL"
+"0","distUR_caption <- paste(""Distribution of Uncertainty Parameters for Unit Risk:"""
+"0","                        , "" All cancers in adult workers"", sep = ""\n"")"
+"0","knitr::kable(distUR, escape=FALSE, format=report_format, digits=3"
+"0","             , format.args = list(scientific=TRUE)"
+"0","             , table.attr = ""style='width:40%;'"""
+"0","             , col.names=colnames(distUR), caption = distUR_caption) %>%"
+"0","    kableExtra::kable_styling(bootstrap_options = c(""condensed"",""hover"")"
+"0","                              , font_size = 10, full_width = TRUE"
+"0","                              , position = ""left"", fixed_thead = TRUE) %>%"
+"0","    kableExtra::footnote(general = ""Best fit normal distribution"")"
+"1","<table style=""width:40%; font-size: 10px; "" class=""table table-condensed table-hover"">
+<caption style=""font-size: initial !important;"">Distribution of Uncertainty Parameters for Unit Risk:
+ All cancers in adult workers</caption>
+ <thead>
+  <tr>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> Parameters </th>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> Estimates </th>
+   <th style=""text-align:left;position: sticky; top:0; background-color: #FFFFFF;""> Std.Err </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style=""text-align:left;""> mean </td>
+   <td style=""text-align:left;""> 0.00114 </td>
+   <td style=""text-align:left;""> 1.57e-05 </td>
+  </tr>
+  <tr>
+   <td style=""text-align:left;""> sd </td>
+   <td style=""text-align:left;""> 0.00157 </td>
+   <td style=""text-align:left;""> 1.11e-05 </td>
+  </tr>
+</tbody>
+<tfoot>
+<tr><td style=""padding: 0; border: 0;"" colspan=""100%""><span style=""font-style: italic;"">Note: </span></td></tr>
+<tr><td style=""padding: 0; border: 0;"" colspan=""100%"">
+<sup></sup> Best fit normal distribution</td></tr>
+</tfoot>
+</table>"
+"1","
+"

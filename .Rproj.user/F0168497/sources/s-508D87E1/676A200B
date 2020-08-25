@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1598385474239.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "676A200B",
+    "lastKnownWriteTime" : 1598280321,
+    "last_content_update" : 1598280321,
+    "path" : "~/GitHub/ATSDR_IPA/R/IPA.Rmd",
+    "project_path" : "R/IPA.Rmd",
+    "properties" : {
+        "cursorPosition" : "2050,0",
+        "scrollLine" : "2030"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

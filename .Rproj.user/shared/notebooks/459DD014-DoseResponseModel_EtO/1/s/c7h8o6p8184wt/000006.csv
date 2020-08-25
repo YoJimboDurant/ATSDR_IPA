@@ -1,0 +1,8 @@
+"0","summaryStringSum <- paste0(""Mean="""
+"0","                     , format(meanIURsum,digits=3,nsmall=0)"
+"0","                     , ""; Median="""
+"0","                     , format(medianIURsum,digits=3,nsmall=0)"
+"0","                     , ""; Std. Dev.="""
+"0","                     , format(sdIURsum,digits=3,nsmall=0)"
+"0","                     , ""; 95th %ile="""
+"0","                     , format(uclIURsum[2],digits=3,nsmall=0))"
