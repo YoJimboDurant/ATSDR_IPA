@@ -1,0 +1,2 @@
+"0","meanCombIUR <- mean(ur.fm.comb$UnitRisk)"
+"0","medCombIUR <- median(ur.fm.comb$UnitRisk)"
