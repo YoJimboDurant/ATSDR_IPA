@@ -85,9 +85,8 @@ __INSERT RON'S FOOTNOTES AND TABLE HERE__
 ```{r raw_air, echo=FALSE}
 
 wd <- file.path(getwd(),"Data")
-CA <- "ContaminantConcentration_ug_m3"
-fnair <- file.path(wd, CA
-  , "NOX_HVAL_2019-12-31 hourly data in basin_converted to ug per m3.xls")
+#CA <- "ContaminantConcentration_ug_m3"
+fnair <- "../Data/ContaminantConcentration_ug_m3/NOX_HVAL_2019-12-31 hourly data in basin_converted to ug per m3.xls"
 
 df_CA <- readxl::read_excel(fnair, sheet="ForR", skip = 0, trim_ws = TRUE
               , na = c("", "NA"))
@@ -213,7 +212,7 @@ Since these data derive from the American Housing Survey of 2007, more recent da
 ```{r ED_EFH, include=FALSE}
 
 ED <- "ExposureDuration_yr"
-fnED <- file.path(wd, ED, "ExpDuration_2017_2015_2008_summary.xlsx")
+fnED <- "../Data/ExposureDuration_yr/ExpDuration_2017_2015_2008_summary.xlsx"
 
 df_ExpDur <- readxl::read_excel(fnED, sheet = "Sheet1", trim_ws = TRUE)
 df_ExpDur <- df_ExpDur %>%
@@ -252,7 +251,7 @@ Differences in the three datasets available from the 2007, 2015, and 2017 AHS pu
 ```{r ED_AHS2017, include=FALSE}
 
 wd2017 <- file.path(wd, ED,"AHS 2017 National PUF v3.0 SAS")
-fnED2017 <- file.path(wd2017,"household.sas7bdat")
+fnED2017 <- "../data/AHS 2017 National PUF v3.0 SAS/household.sas7bdat"
 
 df_ED2017 <- haven::read_sas(fnED2017)
 df_ED2017_2 <- df_ED2017[, c("JHHMOVE", "HHMOVE", "NUMPEOPLE", "NUMADULTS"
@@ -330,7 +329,7 @@ rm(fnED2017, grandTotalPeople, wd2017)
 ```{r ED_AHS2015, include=FALSE}
 
 wd2015 <- file.path(wd, ED,"AHS 2015 National PUF v3.0 SAS")
-fnED2015 <- file.path(wd2015,"household.sas7bdat")
+fnED2015 <- "../Data/AHS 2015 National PUF v3.0 SAS/household.sas7bdat"
 
 df_ED2015 <- haven::read_sas(fnED2015)
 df_ED2015_2 <- df_ED2015[, c("JHHMOVE", "HHMOVE", "NUMPEOPLE", "NUMADULTS"
@@ -408,7 +407,7 @@ rm(fnED2015, wd2015,grandTotalPeople)
 ```{r ED_AHS2007, include=FALSE}
 
 wd2007 <- file.path(wd, ED,"AHS 2007 National PUF v1.1 SAS")
-fnED2007 <- file.path(wd2007,"newhouse.sas7bdat")
+fnED2007 <- file.path("../Data/AHS 2007 National PUF v3.0 SAS/newhouse.sas7bdat")
 
 df_ED2007 <- haven::read_sas(fnED2007)
 df_ED2007_2 <- df_ED2007[, c("jhhmove", "hhmove", "per", "zadult"
