@@ -580,7 +580,7 @@ rm(p_cdfED2007_raw, p_cdfED2015_raw, p_cdfED2017_raw, p_histED2007_raw
 
 ```{r ED_select, out.width="80%", fig.cap="2017 AHS occupancy data", echo=FALSE}
 
-fnStats <- file.path(wd,ED,"SpecificStatsFromAHSDataMultipleYears.xlsx")
+fnStats <- "../Data/ExposureDuration_yr/SpecificStatsFromAHSDataMultipleYears.xlsx"
 
 dfStats <- readxl::read_excel(fnStats, sheet = "SelectedParameters"
                , range = "A2:E10"
@@ -692,10 +692,10 @@ gridExtra::grid.arrange(p_histED2017_resamp, p_cdfED2017_comp, nrow=2, ncol=1)
 # Data to use for ECDF: df_ED2017_sumB
 # Data to use for GoF tests: df_EDsampHist
 
-rm(df_EDsample, df_EDsampleCDF, df_ED2017_complete, df_ED2017_summary
-  , p_cdfED2017_comp, p_histED2017_resamp, ahs_caption, AHSsample
-  , EDall_caption, grandTotalPeople, Stats_caption, stats_colnames
-  , fnStats, df_ED2017_sumB, ED)
+# rm(df_EDsample, df_EDsampleCDF, df_ED2017_complete, df_ED2017_summary
+#   , p_cdfED2017_comp, p_histED2017_resamp, ahs_caption, AHSsample
+#   , EDall_caption, grandTotalPeople, Stats_caption, stats_colnames
+#   , fnStats, df_ED2017_sumB, ED)
 
 ```
 
@@ -743,7 +743,7 @@ knitr::kable(df_descED, escape=FALSE, format=report_format, digits = 5
                , font_size = 10, full_width = TRUE
                , position = "left", fixed_thead = TRUE)
 
-rm(descED, descEDAdj)
+# rm(descED, descEDAdj)
 
 ```
 
@@ -854,8 +854,8 @@ ggplot2::ggplot(df_qq, ggplot2::aes(x=theorqg, y=sampq)) +
           , plot.caption = ggplot2::element_text(hjust=0.5, size = 8)
           , legend.position = "none")
 
-rm(ED_fitlognorm, ED_fitweibull, df_gof, gof_ED_gamma, gof_ED_lnorm
-  , gof_ED_weib, desc_caption, gof_caption)
+# rm(ED_fitlognorm, ED_fitweibull, df_gof, gof_ED_gamma, gof_ED_lnorm
+#   , gof_ED_weib, desc_caption, gof_caption)
 
 
 ```
@@ -920,8 +920,8 @@ EDdisc_dcomp <- fitdistrplus::cdfcomp(ED_fitnbinom
                                       , addlegend = TRUE)
 EDdisc_dcomp + ggplot2::theme_minimal()
 
-rm(descED, df_EDchi2, ED_fitnbinom, ED_fitpois, ED_gofdisc, EDdisc_dcomp
-   , EDdisc_ddens)
+# rm(descED, df_EDchi2, ED_fitnbinom, ED_fitpois, ED_gofdisc, EDdisc_dcomp
+#    , EDdisc_ddens)
 
 ```
 
@@ -1122,13 +1122,13 @@ The data used by EPA derive from the Centers for Disease Control (CDC) National 
 ```{r AT_data, echo=FALSE, fig.width=7, fig.height=7}
 
 wd <- file.path(getwd(), "Data", "AveragingTime_y")
-fn2007 <- file.path(wd, "LIFETIME DISTRIBUTION.xlsx")
+fn2007 <- "../Data/AveragingTime_y/LIFETIME DISTRIBUTION.xlsx"
 df_AT07 <- readxl::read_excel(fn2007, sheet = 1, range = "D4:F21"
                             , trim_ws = TRUE
                             , col_names = c("Age","CumFractDying","FractDying")
                             , col_types = c("numeric", "numeric", "numeric"))
 
-fn2017 <- file.path(wd, "2017LifeTable_ProbDyingByYearAge_Table01.xlsx")
+fn2017 <- "../Data/AveragingTime_y/2017LifeTable_ProbDyingByYearAge_Table01.xlsx"
 df_AT17 <- readxl::read_excel(fn2017, sheet = "Table 1 cleaned", skip = 1
                             , trim_ws = TRUE
                             , col_names = c("Age", "ProbDying", "NumDying")
@@ -1214,7 +1214,7 @@ p_histAT2017 <- ggplot2::ggplot(as.data.frame(df_AT17)
 
 gridExtra::grid.arrange(p_histAT2017, p_cdf2017, p_cdf2007, nrow=3, ncol=1)
 
-rm(fn2007, fn2017, grandTotalPeople, hist_caption, AT17_caption, pal_dot)
+#rm(fn2007, fn2017, grandTotalPeople, hist_caption, AT17_caption, pal_dot)
 
 ```
 
